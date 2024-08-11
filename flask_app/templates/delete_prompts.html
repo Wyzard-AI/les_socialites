@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Prompts</title>
+    <!-- Add your preferred CSS here -->
+</head>
+<body>
+    <div class="container">
+        <h1>Select Prompts to Delete</h1>
+        <form action="/remove-selected-prompts" method="POST">
+            <ul>
+                {% for prompt in prompts %}
+                <li>
+                    <input type="checkbox" name="selected_prompts" value="{{ prompt.id }}">
+                    {{ prompt.prompt }}
+                </li>
+                {% endfor %}
+            </ul>
+            <button type="submit">Remove Selected Prompts</button>
+        </form>
+        <a href="/">Back to Home</a>
+    </div>
+</body>
+</html>

@@ -14,18 +14,27 @@ def get_secret(secret_name):
     secret_payload = response.payload.data.decode('UTF-8')
     return secret_payload
 
-def fetch_prompts_from_bigquery(project_id, dataset_id, table_id):
+def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, include_deleted=False):
     table_ref = f"`{project_id}.{dataset_id}.{table_id}`"
-    query = f"""
-        SELECT DISTINCT prompt
+
+    if include_deleted == False:
+        query = f"""
+        SELECT prompt, id
+        FROM {table_ref}
+        WHERE is_deleted = FALSE
+    """
+    else:
+        query = f"""
+        SELECT prompt, id
         FROM {table_ref}
     """
-    query_job = client.query(query)
+    query_job = bigquery_client.query(query)
     results = query_job.result()
 
     prompts = []
     for row in results:
         prompts.append({
+            "id": row.id,
             "prompt": row.prompt
         })
 
@@ -34,7 +43,6 @@ def fetch_prompts_from_bigquery(project_id, dataset_id, table_id):
 def sanitize_text(text):
     text = text.replace('\n', ' ').replace('\r', ' ')
     text = re.sub(r'\s+', ' ', text).strip()
-    text = re.sub(r'[^\w\s,.?!]', '', text)
     return text
 
 def get_openai_assistant_response(prompt, openai_client, instructions=None):
@@ -43,9 +51,9 @@ def get_openai_assistant_response(prompt, openai_client, instructions=None):
             If asked to review a contract as a lawyer, don't respond that you can't review it as an AI.
             It is understood that's it's not real legal advice being offered. Just follow the prompt instructions.
 
-            If I ask for help to reply to emails please ask me if you can see the email I sent them and their reply and make sure the replies you suggest are friendly but professional and let's also make sure to always follow this template for emails:
-            Beginning of emails: Bonjour (name), I hope you're doing well!
-            Ending of email: Don't hesitate if you have any question, happy (day of the week - EST time)
+            If I request help regarding emails then please ask me if you can see the email I sent them and their reply as well. Also make sure the replies you suggest for the email are friendly but professional.
+
+            If I request help about emails, also remind me to always follow this template for emails: (Beginning) "Bonjour (name), I hope you're doing well!" and (Ending): "Don't hesitate if you have any question, happy (replace this with the day of the week)"
 
             When negotiating, the goal is to always get the most money for our influencers. So please always focus on suggesting more content rather than reducing rates.
 
@@ -65,7 +73,7 @@ def get_openai_assistant_response(prompt, openai_client, instructions=None):
     # Call the OpenAI API
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=messages
         )
         return response.choices[0].message.content
@@ -82,7 +90,7 @@ table_id = 'sales_manager'
 bigquery_service_key = get_secret('les-socialites-bigquery-service-account-key')
 service_account_info = json.loads(bigquery_service_key)
 credentials = service_account.Credentials.from_service_account_info(service_account_info)
-client = bigquery.Client(credentials=credentials, project=service_account_info['project_id'])
+bigquery_client = bigquery.Client(credentials=credentials, project=service_account_info['project_id'])
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
@@ -104,12 +112,13 @@ def submit_prompt():
         {
             "id": prompt_id,
             "prompt": sanitized_prompt,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "is_deleted": False
         }
     ]
 
     try:
-        errors = client.insert_rows_json(f"{dataset_id}.{table_id}", rows_to_insert)
+        errors = bigquery_client.insert_rows_json(f"{dataset_id}.{table_id}", rows_to_insert)
         if errors:
             return f"Encountered errors while inserting rows: {errors}", 500
     except Exception as e:
@@ -142,6 +151,44 @@ def view_prompt():
     prompt = request.args.get('prompt')
     response = get_openai_assistant_response(prompt, openai_client)
     return render_template('results.html', prompt=prompt, response=response)
+
+@app.route('/delete-prompts')
+def delete_prompts():
+    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id)
+    return render_template('delete_prompts.html', prompts=prompts)
+
+@app.route('/remove-selected-prompts', methods=['POST'])
+def remove_selected_prompts():
+    selected_prompt_ids = request.form.getlist('selected_prompts')
+
+    if selected_prompt_ids:
+        # Step 1: Create a new table (temporary or with a new name)
+        temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
+        original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+        # Step 2: Copy data to the new table, excluding selected prompts
+        query = f"""
+            CREATE OR REPLACE TABLE {temp_table_ref} AS
+            SELECT *
+            FROM {original_table_ref}
+            WHERE id NOT IN UNNEST(@selected_ids)
+        """
+        query_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("selected_ids", "STRING", selected_prompt_ids)
+            ]
+        )
+        bigquery_client.query(query, job_config=query_config).result()
+
+        # Step 3: Replace the original table with the new table
+        # Drop the original table
+        bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+
+        # Rename the temporary table to the original table name
+        bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+
+    return redirect('/prompt-menu')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
