@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .response-block {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+
+        .response-block p {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>ChatGPT Response</h1>
+    <div class="response-block">
+        <p><strong>Prompt:</strong> {{ prompt }}</p>
+        <p><strong>Response:</strong> {{ response }}</p>
+    </div>
+    <a href="/">Submit another prompt</a>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Manager</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-4">Welcome to the Prompt Manager</h1>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <!-- Option to Submit a New Prompt -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Submit a New Prompt</h5>
+                        <p class="card-text">Have a new idea or question? Submit it here to get a response.</p>
+                        <!-- Form to Submit New Prompt -->
+                        <form action="/submit-prompt" method="POST">
+                            <div class="mb-3">
+                                <label for="prompt" class="form-label">Enter Your Prompt:</label>
+                                <textarea class="form-control" id="prompt" name="prompt" rows="4" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Submit Prompt</button>
+                        </form>
+                    </div>
+                </div>
+                <!-- Option to Select from Prompt Menu -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Select from Prompt Menu</h5>
+                        <p class="card-text">Browse and select from existing prompts.</p>
+                        <a href="/prompt-menu" class="btn btn-success">Go to Prompt Menu</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap JS and dependencies (Optional for dynamic components) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
