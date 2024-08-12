@@ -1,11 +1,15 @@
+import os
 import json
 import re
+import uuid
+import PyPDF2
 from flask import Flask, request, redirect, render_template
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
 from datetime import datetime
-import uuid
 from openai import OpenAI
+from werkzeug.utils import secure_filename
+from docx import Document
 
 def get_secret(secret_name):
     secret_client = secretmanager.SecretManagerServiceClient()
@@ -112,6 +116,23 @@ def get_openai_assistant_response(prompt, openai_client, category=None):
     except Exception as e:
         return f"An error occurred: {e}"
 
+def extract_text_from_file(file):
+    filename = secure_filename(file.filename)
+    file_extension = os.path.splitext(filename)[1].lower()
+    text = ""
+
+    if file_extension == ".txt":
+        text = file.read().decode("utf-8")
+    elif file_extension == ".pdf":
+        reader = PyPDF2.PdfReader(file)
+        for page in reader.pages:
+            text += page.extract_text()
+    elif file_extension == ".docx":
+        doc = Document(file)
+        for paragraph in doc.paragraphs:
+            text += paragraph.text
+    return text
+
 app = Flask(__name__)
 
 project_id = 'les-socialites-chat-gpt'
@@ -128,12 +149,23 @@ openai_client = OpenAI(api_key=openai_api_key)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Fetch categories from BigQuery
+    query = f"""
+        SELECT DISTINCT category
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE is_deleted = FALSE
+    """
+    query_job = bigquery_client.query(query)
+    categories = [row.category for row in query_job.result()]
+
+    return render_template('index.html', categories=categories)
+
 
 @app.route('/submit-prompt', methods=['POST'])
 def submit_prompt():
     prompt = request.form['prompt']
     category = request.form['category']
+    button_name = request.form.get('button_name')  # Get button_name from form
 
     if not prompt:
         return "Prompt cannot be empty", 400
@@ -142,6 +174,7 @@ def submit_prompt():
 
     sanitized_prompt = sanitize_text(prompt)
     sanitized_category = sanitize_text(category)
+    sanitized_button_name = sanitize_text(button_name) if button_name else None
     prompt_id = str(uuid.uuid4())
 
     # Check for existing instructions in the same category
@@ -171,7 +204,7 @@ def submit_prompt():
             "prompt": sanitized_prompt,
             "category": sanitized_category,
             "instructions": instructions,
-            "button_name": None,
+            "button_name": sanitized_button_name,  # Insert the button_name if provided
             "timestamp": datetime.now().isoformat(),
             "is_deleted": False
         }
@@ -221,9 +254,15 @@ def results():
     response = request.args.get('response')
     return render_template('results.html', prompt=prompt, response=response)
 
-@app.route('/view-prompt')
+@app.route('/view-prompt', methods=['POST'])
 def view_prompt():
-    prompt = request.args.get('prompt')
+    prompt = request.form['prompt']
+    file = request.files.get('file')
+
+    if file and file.filename != '':
+        file_text = extract_text_from_file(file)
+        prompt += "\n\n" + file_text
+
     response = get_openai_assistant_response(prompt, openai_client)
     return render_template('results.html', prompt=prompt, response=response)
 
@@ -236,7 +275,6 @@ def delete_prompts():
 def manage_prompts():
     prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id)
     return render_template('manage_prompts.html', prompts=prompts)
-
 
 @app.route('/remove-selected-prompts', methods=['POST'])
 def remove_selected_prompts():
@@ -281,6 +319,45 @@ def remove_selected_prompts():
             return f"An error occurred during table replacement: {e}", 500
 
     return redirect('/prompt-menu')
+
+@app.route('/remove-selected-categories', methods=['POST'])
+def remove_selected_categories():
+    selected_categories = request.form.getlist('categories')
+
+    if selected_categories:
+        # Step 1: Create a new table (temporary or with a new name)
+        temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
+        original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+        # Step 2: Copy data to the new table, excluding selected categories
+        query = f"""
+            CREATE OR REPLACE TABLE {temp_table_ref} AS
+            SELECT *
+            FROM {original_table_ref}
+            WHERE category NOT IN UNNEST(@selected_categories)
+        """
+        query_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("selected_categories", "STRING", selected_categories)
+            ]
+        )
+        try:
+            bigquery_client.query(query, job_config=query_config).result()
+            print(f"Successfully created temp table excluding selected categories.")
+        except Exception as e:
+            print(f"Error during table creation: {e}")
+            return f"An error occurred during category deletion: {e}", 500
+
+        # Step 3: Replace the original table with the new table
+        try:
+            bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+            bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+            print(f"Successfully replaced original table with temp table.")
+        except Exception as e:
+            print(f"Error during table replacement: {e}")
+            return f"An error occurred during table replacement: {e}", 500
+
+    return redirect('/')
 
 @app.route('/edit-prompt', methods=['POST'])
 def edit_prompt():
