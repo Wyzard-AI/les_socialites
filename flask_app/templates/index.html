@@ -27,6 +27,10 @@
                                 <label for="category" class="form-label">Enter Category:</label>
                                 <input type="text" class="form-control" id="category" name="category" required>
                             </div>
+                            <div class="mb-3">
+                                <label for="button_name" class="form-label">Enter Button Name (optional):</label>
+                                <input type="text" class="form-control" id="button_name" name="button_name">
+                            </div>
                             <button type="submit" class="btn btn-primary">Submit Prompt</button>
                         </form>
                     </div>
@@ -48,17 +52,64 @@
                     </div>
                 </div>
                 <!-- Option to Delete Prompts -->
-                <div class="card">
+                <div class="card mb-4">
                     <div class="card-body">
                         <h5 class="card-title">Delete Prompts</h5>
                         <p class="card-text">Select prompts you want to remove from the system.</p>
                         <a href="/delete-prompts" class="btn btn-danger">Go to Delete Prompts</a>
                     </div>
                 </div>
+                <!-- Option to Update Instructions -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Update Instructions</h5>
+                        <form action="/update-instructions" method="POST">
+                            <div class="mb-3">
+                                <label for="category" class="form-label">Select Category:</label>
+                                <select class="form-control" id="category" name="category" required>
+                                    {% for category in categories %}
+                                        <option value="{{ category }}">{{ category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="instructions" class="form-label">Enter New Instructions:</label>
+                                <textarea class="form-control" id="instructions" name="instructions" rows="4" required></textarea>
+                            </div>
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary">Update Instructions</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- Option to Delete Categories -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Delete Categories</h5>
+                        <form action="/remove-selected-categories" method="POST">
+                            <div class="mb-3">
+                                <label for="categories" class="form-label">Select Categories to Delete:</label>
+                                <div id="categories">
+                                    {% for category in categories %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="categories" value="{{ category }}" id="category-{{ loop.index }}">
+                                            <label class="form-check-label" for="category-{{ loop.index }}">
+                                                {{ category }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-danger">Delete Selected Categories</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <!-- Bootstrap JS and dependencies (Optional for dynamic components) -->
+    <!-- Bootstrap JS and dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
