@@ -15,7 +15,9 @@
                 {% for prompt in prompts %}
                     <form action="/view-prompt" method="GET" class="m-2">
                         <input type="hidden" name="prompt" value="{{ prompt.prompt }}">
-                        <button type="submit" class="btn btn-outline-primary">{{ prompt.prompt }}</button>
+                        <button type="submit" class="btn btn-outline-primary">
+                            {{ prompt.button_name if prompt.button_name else prompt.prompt }}
+                        </button>
                     </form>
                 {% endfor %}
             {% else %}

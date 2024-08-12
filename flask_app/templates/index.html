@@ -23,16 +23,36 @@
                                 <label for="prompt" class="form-label">Enter Your Prompt:</label>
                                 <textarea class="form-control" id="prompt" name="prompt" rows="4" required></textarea>
                             </div>
+                            <div class="mb-3">
+                                <label for="category" class="form-label">Enter Category:</label>
+                                <input type="text" class="form-control" id="category" name="category" required>
+                            </div>
                             <button type="submit" class="btn btn-primary">Submit Prompt</button>
                         </form>
                     </div>
                 </div>
-                <!-- Option to Select from Prompt Menu -->
+                <!-- Option to Select from Prompt Categories -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Browse Categories</h5>
+                        <p class="card-text">Browse and select from available prompt categories.</p>
+                        <a href="/prompt-categories" class="btn btn-success">Go to Categories</a>
+                    </div>
+                </div>
+                <!-- Option to Manage Prompts -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Manage Prompts</h5>
+                        <p class="card-text">Edit prompts or assign button names.</p>
+                        <a href="/manage-prompts" class="btn btn-warning">Go to Manage Prompts</a>
+                    </div>
+                </div>
+                <!-- Option to Delete Prompts -->
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Select from Prompt Menu</h5>
-                        <p class="card-text">Browse and select from existing prompts.</p>
-                        <a href="/prompt-menu" class="btn btn-success">Go to Prompt Menu</a>
+                        <h5 class="card-title">Delete Prompts</h5>
+                        <p class="card-text">Select prompts you want to remove from the system.</p>
+                        <a href="/delete-prompts" class="btn btn-danger">Go to Delete Prompts</a>
                     </div>
                 </div>
             </div>
