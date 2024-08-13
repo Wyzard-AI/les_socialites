@@ -10,6 +10,33 @@
 <body>
     <div class="container my-5">
         <h1 class="text-center mb-4">Pick Your Task</h1>
+
+        <!-- Usage Note -->
+        <div class="alert alert-info text-center" role="alert">
+            If you're uploading a file, select the file you want to upload then click on the task button.
+        </div>
+
+        <!-- Filter Form -->
+        <form action="/prompt-menu" method="GET" class="mb-4">
+            <input type="hidden" name="category" value="{{ request.args.get('category', '') }}">
+            <div class="row">
+                <div class="col-md-12">
+                    <label for="subcategory" class="form-label">Filter by Subcategory:</label>
+                    <select class="form-control" name="subcategory" id="subcategory">
+                        <option value="">Select a Subcategory</option>
+                        {% for subcategory in subcategories %}
+                            <option value="{{ subcategory }}" {% if request.args.get('subcategory') == subcategory %}selected{% endif %}>
+                                {{ subcategory }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="text-center mt-3">
+                <button type="submit" class="btn btn-primary">Apply Filter</button>
+            </div>
+        </form>
+
         <div class="d-flex flex-wrap justify-content-center">
             {% if prompts %}
                 {% for prompt in prompts %}
