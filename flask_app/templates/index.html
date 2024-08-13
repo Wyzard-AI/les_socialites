@@ -12,6 +12,14 @@
         <h1 class="text-center mb-4">Welcome to the Prompt Manager</h1>
         <div class="row justify-content-center">
             <div class="col-md-6">
+                <!-- Option to Select from Prompt Categories -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Browse Categories</h5>
+                        <p class="card-text">Browse and select from available prompt categories.</p>
+                        <a href="/prompt-categories" class="btn btn-success">Go to Categories</a>
+                    </div>
+                </div>
                 <!-- Option to Submit a New Prompt -->
                 <div class="card mb-4">
                     <div class="card-body">
@@ -28,35 +36,15 @@
                                 <input type="text" class="form-control" id="category" name="category" required>
                             </div>
                             <div class="mb-3">
+                                <label for="subcategory" class="form-label">Enter Subcategory (optional):</label>
+                                <input type="text" class="form-control" id="subcategory" name="subcategory">
+                            </div>
+                            <div class="mb-3">
                                 <label for="button_name" class="form-label">Enter Button Name (optional):</label>
                                 <input type="text" class="form-control" id="button_name" name="button_name">
                             </div>
                             <button type="submit" class="btn btn-primary">Submit Prompt</button>
                         </form>
-                    </div>
-                </div>
-                <!-- Option to Select from Prompt Categories -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Browse Categories</h5>
-                        <p class="card-text">Browse and select from available prompt categories.</p>
-                        <a href="/prompt-categories" class="btn btn-success">Go to Categories</a>
-                    </div>
-                </div>
-                <!-- Option to Manage Prompts -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Manage Prompts</h5>
-                        <p class="card-text">Edit prompts or assign button names.</p>
-                        <a href="/manage-prompts" class="btn btn-warning">Go to Manage Prompts</a>
-                    </div>
-                </div>
-                <!-- Option to Delete Prompts -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Delete Prompts</h5>
-                        <p class="card-text">Select prompts you want to remove from the system.</p>
-                        <a href="/delete-prompts" class="btn btn-danger">Go to Delete Prompts</a>
                     </div>
                 </div>
                 <!-- Option to Update Instructions -->
@@ -76,34 +64,24 @@
                                 <label for="instructions" class="form-label">Enter New Instructions:</label>
                                 <textarea class="form-control" id="instructions" name="instructions" rows="4" required></textarea>
                             </div>
-                            <div class="text-center">
-                                <button type="submit" class="btn btn-primary">Update Instructions</button>
-                            </div>
+                            <button type="submit" class="btn btn-primary">Update Instructions</button>
                         </form>
                     </div>
                 </div>
-                <!-- Option to Delete Categories -->
-                <div class="card">
+                <!-- Option to Manage Prompts -->
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">Delete Categories</h5>
-                        <form action="/remove-selected-categories" method="POST">
-                            <div class="mb-3">
-                                <label for="categories" class="form-label">Select Categories to Delete:</label>
-                                <div id="categories">
-                                    {% for category in categories %}
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="categories" value="{{ category }}" id="category-{{ loop.index }}">
-                                            <label class="form-check-label" for="category-{{ loop.index }}">
-                                                {{ category }}
-                                            </label>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            <div class="text-center">
-                                <button type="submit" class="btn btn-danger">Delete Selected Categories</button>
-                            </div>
-                        </form>
+                        <h5 class="card-title">Manage Prompts</h5>
+                        <p class="card-text">Edit/delete prompts or assign button names.</p>
+                        <a href="/manage-prompts" class="btn btn-warning">Go to Manage Prompts</a>
+                    </div>
+                </div>
+                <!-- Option to Manage Categories -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Manage Categories</h5>
+                        <p class="card-text">Edit/delete categories.</p>
+                        <a href="/manage-categories" class="btn btn-danger">Go to Manage Categories</a>
                     </div>
                 </div>
             </div>

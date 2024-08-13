@@ -1,3 +1,4 @@
+### IMPORTS START ###
 import os
 import json
 import re
@@ -11,6 +12,8 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
 
+
+### FUNCTIONS START ###
 def get_secret(secret_name):
     secret_client = secretmanager.SecretManagerServiceClient()
     secret_resource_name = f"projects/916481347801/secrets/{secret_name}/versions/1"
@@ -18,30 +21,35 @@ def get_secret(secret_name):
     secret_payload = response.payload.data.decode('UTF-8')
     return secret_payload
 
-def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, include_deleted=False, category=None):
+def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, include_deleted=False, category=None, subcategory=None):
     table_ref = f"`{project_id}.{dataset_id}.{table_id}`"
 
     if include_deleted:
         query = f"""
-            SELECT id, prompt, category, button_name
+            SELECT id, prompt, category, subcategory, button_name
             FROM {table_ref}
+            WHERE 1=1
         """
     else:
         query = f"""
-            SELECT id, prompt, category, button_name
+            SELECT id, prompt, category, subcategory, button_name
             FROM {table_ref}
             WHERE is_deleted = FALSE
         """
 
+    query_params = []
     if category:
         query += " AND category = @category"
-        query_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("category", "STRING", category)
-            ]
-        )
+        query_params.append(bigquery.ScalarQueryParameter("category", "STRING", category))
+
+    if subcategory:
+        query += " AND subcategory = @subcategory"
+        query_params.append(bigquery.ScalarQueryParameter("subcategory", "STRING", subcategory))
+
+    if query_params:
+        query_config = bigquery.QueryJobConfig(query_parameters=query_params)
     else:
-        query_config = None  # Ensure query_config is None if no category
+        query_config = None  # Ensure query_config is None if no parameters
 
     query_job = bigquery_client.query(query, job_config=query_config)
     results = query_job.result()
@@ -55,14 +63,22 @@ def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, include_delete
             "id": row.id,
             "prompt": row.prompt,
             "category": row.category,
+            "subcategory": row.subcategory,
             "button_name": row.button_name
         })
 
     return prompts
 
-def sanitize_text(text):
+def sanitize_text(text, proper=False):
+    # Replace newline and carriage return characters with spaces
     text = text.replace('\n', ' ').replace('\r', ' ')
+    # Replace multiple spaces with a single space
     text = re.sub(r'\s+', ' ', text).strip()
+
+    # If proper is True, capitalize the text properly
+    if proper:
+        text = text.title()
+
     return text
 
 def get_openai_assistant_response(prompt, openai_client, category=None):
@@ -133,6 +149,8 @@ def extract_text_from_file(file):
             text += paragraph.text
     return text
 
+
+### APP START ###
 app = Flask(__name__)
 
 project_id = 'les-socialites-chat-gpt'
@@ -160,11 +178,72 @@ def index():
 
     return render_template('index.html', categories=categories)
 
+@app.route('/thank-you')
+def thank_you():
+    prompt = request.args.get('prompt')
+    response = request.args.get('response')
+    return render_template('thank_you.html', prompt=prompt, response=response)
+
+@app.route('/results')
+def results():
+    prompt = request.args.get('prompt')
+    response = request.args.get('response')
+    return render_template('results.html', prompt=prompt, response=response)
+
+
+
+### ROUTES FOR PROMPTS ###
+
+@app.route('/prompt-menu')
+def prompt_menu():
+    category = request.args.get('category')
+    subcategory = request.args.get('subcategory')
+
+    # Fetch distinct subcategories based on the selected category
+    query = f"""
+        SELECT DISTINCT subcategory
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE is_deleted = FALSE AND category = @category AND subcategory IS NOT NULL
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("category", "STRING", category)
+        ]
+    )
+    query_job = bigquery_client.query(query, job_config=query_config)
+    subcategories = [row.subcategory for row in query_job.result()]
+
+    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=category, subcategory=subcategory)
+
+    return render_template('prompt_menu.html', prompts=prompts, subcategories=subcategories)
+
+
+@app.route('/manage-prompts')
+def manage_prompts():
+    selected_category = request.args.get('category')
+
+    # Fetch categories for the dropdown
+    query = f"""
+        SELECT DISTINCT category
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE is_deleted = FALSE
+    """
+    query_job = bigquery_client.query(query)
+    categories = [row.category for row in query_job.result()]
+
+    # Fetch prompts, optionally filtering by the selected category
+    if selected_category:
+        prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=selected_category)
+    else:
+        prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id)
+
+    return render_template('manage_prompts.html', prompts=prompts, categories=categories, selected_category=selected_category)
 
 @app.route('/submit-prompt', methods=['POST'])
 def submit_prompt():
     prompt = request.form['prompt']
     category = request.form['category']
+    subcategory = request.form.get('subcategory')  # Get subcategory from form
     button_name = request.form.get('button_name')  # Get button_name from form
 
     if not prompt:
@@ -173,8 +252,9 @@ def submit_prompt():
         return "Category cannot be empty", 400
 
     sanitized_prompt = sanitize_text(prompt)
-    sanitized_category = sanitize_text(category)
-    sanitized_button_name = sanitize_text(button_name) if button_name else None
+    sanitized_category = sanitize_text(category, proper=True)
+    sanitized_subcategory = sanitize_text(subcategory, proper=True) if subcategory else None
+    sanitized_button_name = sanitize_text(button_name, proper=True) if button_name else None
     prompt_id = str(uuid.uuid4())
 
     # Check for existing instructions in the same category
@@ -203,6 +283,7 @@ def submit_prompt():
             "id": prompt_id,
             "prompt": sanitized_prompt,
             "category": sanitized_category,
+            "subcategory": sanitized_subcategory,  # Insert the subcategory if provided
             "instructions": instructions,
             "button_name": sanitized_button_name,  # Insert the button_name if provided
             "timestamp": datetime.now().isoformat(),
@@ -222,38 +303,6 @@ def submit_prompt():
 
     return redirect(f'/thank-you?prompt={sanitized_prompt}&response={sanitized_response}&category={sanitized_category}')
 
-@app.route('/thank-you')
-def thank_you():
-    prompt = request.args.get('prompt')
-    response = request.args.get('response')
-    return render_template('thank_you.html', prompt=prompt, response=response)
-
-@app.route('/prompt-menu')
-def prompt_menu():
-    category = request.args.get('category')
-    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=category)
-    return render_template('prompt_menu.html', prompts=prompts)
-
-@app.route('/prompt-categories')
-def prompt_categories():
-    query = f"""
-        SELECT DISTINCT category
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE is_deleted = FALSE
-    """
-    query_job = bigquery_client.query(query)
-    results = query_job.result()
-
-    categories = [row.category for row in results]
-
-    return render_template('prompt_categories.html', categories=categories)
-
-@app.route('/results')
-def results():
-    prompt = request.args.get('prompt')
-    response = request.args.get('response')
-    return render_template('results.html', prompt=prompt, response=response)
-
 @app.route('/view-prompt', methods=['POST'])
 def view_prompt():
     prompt = request.form['prompt']
@@ -266,98 +315,86 @@ def view_prompt():
     response = get_openai_assistant_response(prompt, openai_client)
     return render_template('results.html', prompt=prompt, response=response)
 
-@app.route('/delete-prompts')
-def delete_prompts():
-    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id)
-    return render_template('delete_prompts.html', prompts=prompts)
+@app.route('/assign-button-name', methods=['POST'])
+def assign_button_name():
+    prompt_id = request.form['prompt_id']
+    button_name = request.form['button_name']
 
-@app.route('/manage-prompts')
-def manage_prompts():
-    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id)
-    return render_template('manage_prompts.html', prompts=prompts)
+    if not prompt_id or not button_name:
+        return "Prompt ID and button name cannot be empty", 400
 
-@app.route('/remove-selected-prompts', methods=['POST'])
-def remove_selected_prompts():
-    selected_prompt_ids = request.form.getlist('selected_prompts')
+    # Step 1: Create a new table (temporary or with a new name)
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
+    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
-    if selected_prompt_ids:
-        # Debug: Log selected IDs
-        print(f"Selected prompt IDs for deletion: {selected_prompt_ids}")
+    # Step 2: Copy data to the new table, updating the button name for the selected prompt
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT
+            id,
+            prompt,
+            category,
+            subcategory,
+            instructions,
+            CASE WHEN id = @prompt_id THEN @button_name ELSE button_name END as button_name,
+            timestamp,
+            is_deleted
+        FROM {original_table_ref}
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id),
+            bigquery.ScalarQueryParameter("button_name", "STRING", button_name)
+        ]
+    )
+    bigquery_client.query(query, job_config=query_config).result()
 
-        # Step 1: Create a new table (temporary or with a new name)
-        temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-        original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    # Step 3: Replace the original table with the new table
+    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
 
-        # Step 2: Copy data to the new table, excluding selected prompts
-        query = f"""
-            CREATE OR REPLACE TABLE {temp_table_ref} AS
-            SELECT *
-            FROM {original_table_ref}
-            WHERE id NOT IN UNNEST(@selected_ids)
-        """
-        query_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ArrayQueryParameter("selected_ids", "STRING", selected_prompt_ids)
-            ]
-        )
-        try:
-            bigquery_client.query(query, job_config=query_config).result()
-            # Debug: Log success of query
-            print(f"Successfully created temp table excluding selected prompts.")
-        except Exception as e:
-            print(f"Error during table creation: {e}")
-            return f"An error occurred during prompt deletion: {e}", 500
+    return redirect('/delete-prompts')
 
-        # Step 3: Replace the original table with the new table
-        try:
-            bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-            bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
-            # Debug: Log success of table replacement
-            print(f"Successfully replaced original table with temp table.")
-        except Exception as e:
-            print(f"Error during table replacement: {e}")
-            return f"An error occurred during table replacement: {e}", 500
+@app.route('/delete-prompt', methods=['POST'])
+def delete_prompt():
+    prompt_id = request.form['prompt_id']
 
-    return redirect('/prompt-menu')
+    if not prompt_id:
+        return "Prompt ID is required", 400
 
-@app.route('/remove-selected-categories', methods=['POST'])
-def remove_selected_categories():
-    selected_categories = request.form.getlist('categories')
+    # Step 1: Create a new table (temporary or with a new name)
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
+    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
-    if selected_categories:
-        # Step 1: Create a new table (temporary or with a new name)
-        temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-        original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    # Step 2: Copy data to the new table, excluding the selected prompt
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT *
+        FROM {original_table_ref}
+        WHERE id != @prompt_id
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id)
+        ]
+    )
+    try:
+        bigquery_client.query(query, job_config=query_config).result()
+        print(f"Successfully created temp table excluding the selected prompt.")
+    except Exception as e:
+        print(f"Error during table creation: {e}")
+        return f"An error occurred during prompt deletion: {e}", 500
 
-        # Step 2: Copy data to the new table, excluding selected categories
-        query = f"""
-            CREATE OR REPLACE TABLE {temp_table_ref} AS
-            SELECT *
-            FROM {original_table_ref}
-            WHERE category NOT IN UNNEST(@selected_categories)
-        """
-        query_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ArrayQueryParameter("selected_categories", "STRING", selected_categories)
-            ]
-        )
-        try:
-            bigquery_client.query(query, job_config=query_config).result()
-            print(f"Successfully created temp table excluding selected categories.")
-        except Exception as e:
-            print(f"Error during table creation: {e}")
-            return f"An error occurred during category deletion: {e}", 500
+    # Step 3: Replace the original table with the new table
+    try:
+        bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+        bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+        print(f"Successfully replaced original table with temp table.")
+    except Exception as e:
+        print(f"Error during table replacement: {e}")
+        return f"An error occurred during table replacement: {e}", 500
 
-        # Step 3: Replace the original table with the new table
-        try:
-            bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-            bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
-            print(f"Successfully replaced original table with temp table.")
-        except Exception as e:
-            print(f"Error during table replacement: {e}")
-            return f"An error occurred during table replacement: {e}", 500
-
-    return redirect('/')
+    return redirect('/manage-prompts')
 
 @app.route('/edit-prompt', methods=['POST'])
 def edit_prompt():
@@ -381,6 +418,7 @@ def edit_prompt():
             id,
             CASE WHEN id = @prompt_id THEN @new_prompt_text ELSE prompt END as prompt,
             category,
+            subcategory,
             instructions,
             button_name,
             timestamp,
@@ -404,7 +442,196 @@ def edit_prompt():
     bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
 
     print("Prompt update successful. Redirecting to delete-prompts...")
-    return redirect('/delete-prompts')
+    return redirect('/manage-prompts')
+
+
+
+### ROUTES FOR CATEGORIES ###
+
+@app.route('/prompt-categories')
+def prompt_categories():
+    # Fetch categories sorted by usage count
+    query = f"""
+        SELECT category, COUNT(*) as usage_count
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE is_deleted = FALSE
+        GROUP BY category
+        ORDER BY usage_count DESC
+    """
+    query_job = bigquery_client.query(query)
+    categories = [row.category for row in query_job.result()]
+
+    return render_template('prompt_categories.html', categories=categories)
+
+@app.route('/manage-categories')
+def manage_categories():
+    # Fetch distinct categories and their subcategories
+    query = f"""
+        SELECT DISTINCT category, subcategory
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE is_deleted = FALSE
+    """
+    query_job = bigquery_client.query(query)
+    results = query_job.result()
+
+    categories = {}
+    for row in results:
+        if row.category not in categories:
+            categories[row.category] = []
+        if row.subcategory and row.subcategory not in categories[row.category]:
+            categories[row.category].append(row.subcategory)
+
+    return render_template('manage_categories.html', categories=categories)
+
+@app.route('/edit-category', methods=['POST'])
+def edit_category():
+    old_category = request.form['old_category']
+    new_category_name = request.form['new_category_name']
+
+    if not old_category or not new_category_name:
+        return "Category names cannot be empty", 400
+
+    # Step 1: Create a new table (temporary or with a new name)
+    temp_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+    # Step 2: Copy data to the new table, updating the category name
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT
+            id,
+            prompt,
+            CASE WHEN category = @old_category THEN @new_category_name ELSE category END as category,
+            subcategory,
+            instructions,
+            button_name,
+            timestamp,
+            is_deleted
+        FROM {original_table_ref}
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("old_category", "STRING", old_category),
+            bigquery.ScalarQueryParameter("new_category_name", "STRING", new_category_name)
+        ]
+    )
+    bigquery_client.query(query, job_config=query_config).result()
+
+    # Step 3: Replace the original table with the new table
+    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+
+    return redirect('/manage-categories')
+
+@app.route('/edit-subcategory', methods=['POST'])
+def edit_subcategory():
+    category = request.form['category']
+    old_subcategory = request.form['old_subcategory']
+    new_subcategory_name = request.form['new_subcategory_name']
+
+    if not category or not old_subcategory or not new_subcategory_name:
+        return "Category, old subcategory, and new subcategory names cannot be empty", 400
+
+    # Step 1: Create a new table (temporary or with a new name)
+    temp_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+    # Step 2: Copy data to the new table, updating the subcategory name
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT
+            id,
+            prompt,
+            category,
+            CASE WHEN category = @category AND subcategory = @old_subcategory THEN @new_subcategory_name ELSE subcategory END as subcategory,
+            instructions,
+            button_name,
+            timestamp,
+            is_deleted
+        FROM {original_table_ref}
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("category", "STRING", category),
+            bigquery.ScalarQueryParameter("old_subcategory", "STRING", old_subcategory),
+            bigquery.ScalarQueryParameter("new_subcategory_name", "STRING", new_subcategory_name)
+        ]
+    )
+    bigquery_client.query(query, job_config=query_config).result()
+
+    # Step 3: Replace the original table with the new table
+    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+
+    return redirect('/manage-categories')
+
+@app.route('/delete-category', methods=['POST'])
+def delete_category():
+    category = request.form['category']
+
+    if not category:
+        return "Category name cannot be empty", 400
+
+    # Step 1: Create a new table (temporary or with a new name)
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
+    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+    # Step 2: Copy data to the new table, excluding the selected category
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT *
+        FROM {original_table_ref}
+        WHERE category != @category
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("category", "STRING", category)
+        ]
+    )
+    bigquery_client.query(query, job_config=query_config).result()
+
+    # Step 3: Replace the original table with the new table
+    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+
+    return redirect('/manage-categories')
+
+@app.route('/delete-subcategory', methods=['POST'])
+def delete_subcategory():
+    category = request.form['category']
+    subcategory = request.form['subcategory']
+
+    if not category or not subcategory:
+        return "Category and subcategory names cannot be empty", 400
+
+    # Step 1: Create a new table (temporary or with a new name)
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
+    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+    # Step 2: Copy data to the new table, excluding the selected subcategory
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT *
+        FROM {original_table_ref}
+        WHERE NOT (category = @category AND subcategory = @subcategory)
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("category", "STRING", category),
+            bigquery.ScalarQueryParameter("subcategory", "STRING", subcategory)
+        ]
+    )
+    bigquery_client.query(query, job_config=query_config).result()
+
+    # Step 3: Replace the original table with the new table
+    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+
+    return redirect('/manage-categories')
+
+
+
+### ROUTES FOR INSTRUCTIONS ###
 
 @app.route('/update-instructions', methods=['POST'])
 def update_instructions():
@@ -425,6 +652,7 @@ def update_instructions():
             id,
             prompt,
             category,
+            subcategory,
             CASE WHEN category = @category THEN @new_instructions ELSE instructions END as instructions,
             button_name,
             timestamp,
@@ -443,46 +671,7 @@ def update_instructions():
     bigquery_client.delete_table(original_table_ref, not_found_ok=True)
     bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
 
-    return redirect('/prompt-categories')
-
-@app.route('/assign-button-name', methods=['POST'])
-def assign_button_name():
-    prompt_id = request.form['prompt_id']
-    button_name = request.form['button_name']
-
-    if not prompt_id or not button_name:
-        return "Prompt ID and button name cannot be empty", 400
-
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, updating the button name for the selected prompt
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            category,
-            instructions,
-            CASE WHEN id = @prompt_id THEN @button_name ELSE button_name END as button_name,
-            timestamp,
-            is_deleted
-        FROM {original_table_ref}
-    """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id),
-            bigquery.ScalarQueryParameter("button_name", "STRING", button_name)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
-
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
-
-    return redirect('/delete-prompts')
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(debug=True)
