@@ -3,8 +3,8 @@ import os
 import json
 import re
 import uuid
-import PyPDF2
-from flask import Flask, request, redirect, render_template
+from pypdf import PdfReader
+from flask import Flask, request, redirect, render_template, session
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
 from datetime import datetime
@@ -81,13 +81,14 @@ def sanitize_text(text, proper=False):
 
     return text
 
-def get_openai_assistant_response(prompt, openai_client, category=None):
-    # Default instructions
-    default_instructions = """
-        You are a manager at an influencer marketing company that does business in Canada and the United States.
-    """
+def get_openai_assistant_response(conversation, openai_client, category=None):
+    # Check if the conversation is just starting
+    if len(conversation) == 1 and category:
+        # Default instructions
+        default_instructions = """
+            You are a manager at an influencer marketing company that does business in Canada and the United States.
+        """
 
-    if category:
         # Fetch instructions from BigQuery based on the category
         query = f"""
             SELECT instructions
@@ -109,28 +110,21 @@ def get_openai_assistant_response(prompt, openai_client, category=None):
 
         if not instructions:
             instructions = default_instructions
-    else:
-        instructions = default_instructions
 
-    # Sanitize the inputs
-    sanitized_prompt = sanitize_text(prompt)
-    sanitized_instructions = sanitize_text(instructions)
+        # Sanitize the instructions and add them to the conversation
+        sanitized_instructions = sanitize_text(instructions)
+        conversation.append({"role": "system", "content": sanitized_instructions})
 
-    # Prepare the messages
-    messages = [
-        {"role": "system", "content": sanitized_instructions},
-        {"role": "user", "content": sanitized_prompt}
-    ]
-
-    # Call the OpenAI API
+    # Call the OpenAI API with the entire conversation
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4o",
-            messages=messages
+            messages=conversation
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"An error occurred: {e}"
+
 
 def extract_text_from_file(file):
     filename = secure_filename(file.filename)
@@ -140,7 +134,7 @@ def extract_text_from_file(file):
     if file_extension == ".txt":
         text = file.read().decode("utf-8")
     elif file_extension == ".pdf":
-        reader = PyPDF2.PdfReader(file)
+        reader = PdfReader(file)
         for page in reader.pages:
             text += page.extract_text()
     elif file_extension == ".docx":
@@ -152,6 +146,8 @@ def extract_text_from_file(file):
 
 ### APP START ###
 app = Flask(__name__)
+
+app.secret_key = get_secret('les-socialites-app-secret-key')
 
 project_id = 'les-socialites-chat-gpt'
 dataset_id = 'prompt_manager'
@@ -303,17 +299,37 @@ def submit_prompt():
 
     return redirect(f'/thank-you?prompt={sanitized_prompt}&response={sanitized_response}&category={sanitized_category}')
 
-@app.route('/view-prompt', methods=['POST'])
+@app.route('/view-prompt', methods=['GET', 'POST'])
 def view_prompt():
-    prompt = request.form['prompt']
-    file = request.files.get('file')
+    if request.method == 'POST':
+        # Get the prompt and previous conversation from the form or session
+        prompt = request.form['prompt']
+        conversation = session.get('conversation', [])
+        category = request.form.get('category')  # Assuming category is provided
 
-    if file and file.filename != '':
-        file_text = extract_text_from_file(file)
-        prompt += "\n\n" + file_text
+        file = request.files.get('file')
+        if file and file.filename != '':
+            file_text = extract_text_from_file(file)
+            prompt += "\n\n" + file_text
 
-    response = get_openai_assistant_response(prompt, openai_client)
-    return render_template('results.html', prompt=prompt, response=response)
+        # Append the user's prompt (including file content if applicable) to the conversation
+        conversation.append({"role": "user", "content": prompt})
+
+        # Get the response from OpenAI, passing the category for the first interaction
+        response = get_openai_assistant_response(conversation, openai_client, category=category)
+
+        # Append the assistant's response to the conversation
+        conversation.append({"role": "assistant", "content": response})
+
+        # Save the conversation to the session
+        session['conversation'] = conversation
+
+        return render_template('results.html', prompt=prompt, response=response, conversation=conversation)
+
+    else:
+        # Initialize a new conversation if this is a GET request
+        session['conversation'] = []
+        return redirect('/')
 
 @app.route('/assign-button-name', methods=['POST'])
 def assign_button_name():

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Results</title>
+    <title>ChatGPT Conversation</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,11 +30,30 @@
     </style>
 </head>
 <body>
-    <h1>ChatGPT Response</h1>
+    <h1>ChatGPT Conversation</h1>
+
     <div class="response-block">
-        <p><strong>Prompt:</strong> {{ prompt }}</p>
-        <p><strong>Response:</strong> {{ response }}</p>
+        {% for message in conversation %}
+            <p><strong>{{ message.role.capitalize() }}:</strong> {{ message.content }}</p>
+        {% endfor %}
     </div>
-    <a href="/">Submit another prompt</a>
+
+    <form action="/view-prompt" method="POST" enctype="multipart/form-data">
+        <div>
+            <label for="prompt">Your Message:</label>
+            <textarea name="prompt" id="prompt" rows="4" class="form-control" required></textarea>
+        </div>
+        <div>
+            <label for="file">Upload a Document (optional):</label>
+            <input type="file" name="file" id="file" class="form-control" accept=".txt,.docx,.pdf">
+        </div>
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary">Send</button>
+        </div>
+    </form>
+
+    <div class="mt-3">
+        <a href="/" class="btn btn-secondary">Start a New Conversation</a>
+    </div>
 </body>
 </html>
