@@ -9,54 +9,147 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f4f4f4;
+            background-color: #121212; /* Dark background */
+            color: #e0e0e0; /* Light text */
+            display: flex;
+            justify-content: center; /* Center the content horizontally */
         }
 
         h1 {
-            color: #333;
+            color: #ffffff;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 750px; /* Slightly increased width for the container */
+            width: 100%;
+            padding: 0 20px; /* Padding on both sides */
+            box-sizing: border-box; /* Ensure padding doesn't affect width */
         }
 
         .response-block {
-            background-color: #fff;
+            background-color: #1e1e1e; /* Darker grey for response blocks */
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            margin-top: 20px;
+            font-size: 14px; /* Smaller font size for responses */
+            line-height: 1.5; /* Improved readability */
+            color: #e0e0e0; /* Light text color */
+        }
+
+        .conversation {
+            max-height: 600px; /* Increased height */
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #1a1a1a; /* Slightly lighter dark background */
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            color: #e0e0e0; /* Light text color */
+            width: 100%; /* Take full width of the container */
+        }
+
+        .assistant {
+            margin-bottom: 10px;
+        }
+
+        .assistant .response-block {
+            background-color: #333; /* Dark grey for assistant responses */
+            border-left: 5px solid #2196F3;
+        }
+
+        form {
+            background-color: #1e1e1e; /* Darker background for the form */
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px; /* Added margin for spacing */
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+            background-color: #2c2c2c; /* Dark input background */
+            color: #ffffff; /* White text color */
+            box-sizing: border-box; /* Ensure textarea fits within the form */
+        }
+
+        #file {
+            margin-bottom: 10px;
+            color: #e0e0e0; /* Light text for file input */
+        }
+
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button, .btn-secondary {
+            width: 95%; /* Slightly reduced width for buttons */
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #2196F3; /* Consistent button color */
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+            margin-left: auto;
+            margin-right: auto; /* Center the buttons */
+        }
+
+        button:hover, .btn-secondary:hover {
+            background-color: #1976D2;
+        }
+
+        .mt-3 {
             margin-top: 20px;
         }
 
-        .response-block p {
-            margin: 10px 0;
+        @media (max-width: 768px) {
+            .btn-secondary {
+                width: 100%; /* Full width on smaller screens */
+            }
         }
     </style>
 </head>
 <body>
-    <h1>ChatGPT Conversation</h1>
+    <div class="container">
+        <h1>ChatGPT Conversation</h1>
 
-    <div class="response-block">
-        {% for message in conversation %}
-            <p><strong>{{ message.role.capitalize() }}:</strong> {{ message.content }}</p>
-        {% endfor %}
-    </div>
+        <div class="conversation">
+            {% for message in conversation %}
+                {% if message.role == "assistant" %}
+                    <div class="assistant">
+                        <div class="response-block">
+                            {{ message.content|safe }}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
 
-    <form action="/view-prompt" method="POST" enctype="multipart/form-data">
-        <div>
-            <label for="prompt">Your Message:</label>
-            <textarea name="prompt" id="prompt" rows="4" class="form-control" required></textarea>
-        </div>
-        <div>
-            <label for="file">Upload a Document (optional):</label>
-            <input type="file" name="file" id="file" class="form-control" accept=".txt,.docx,.pdf">
-        </div>
-        <div class="mt-3">
-            <button type="submit" class="btn btn-primary">Send</button>
-        </div>
-    </form>
-
-    <div class="mt-3">
-        <a href="/start-new-conversation" class="btn btn-secondary">Start a New Conversation</a>
-    </div>
-    <div class="mt-3">
-        <a href="/prompt-menu" class="btn btn-secondary">Pick a New Task</a>
+        <form action="/view-prompt" method="POST" enctype="multipart/form-data">
+            <div>
+                <label for="prompt">Your Message:</label>
+                <textarea name="prompt" id="prompt" rows="6" class="form-control" required></textarea>
+            </div>
+            <div>
+                <label for="file">Upload a Document (optional):</label>
+                <input type="file" name="file" id="file" class="form-control" accept=".txt,.docx,.pdf">
+            </div>
+            <div class="button-container">
+                <button type="submit">Send</button>
+                <a href="/start-new-conversation" class="btn-secondary">Start a New Conversation</a>
+                <a href="/prompt-menu" class="btn-secondary">Pick a New Task</a>
+            </div>
+        </form>
     </div>
 </body>
 </html>

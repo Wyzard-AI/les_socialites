@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
+from markdown2 import markdown
 
 
 ### FUNCTIONS START ###
@@ -297,15 +298,15 @@ def submit_prompt():
 
     # Call the get_openai_assistant_response function to handle instructions
     response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
-    sanitized_response = sanitize_text(response)
+    formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
-    conversation.append({"role": "assistant", "content": sanitized_response})
+    conversation.append({"role": "assistant", "content": formatted_response})
 
     # Store the conversation in the session
     session['conversation'] = conversation
 
-    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={sanitized_response}&category={sanitized_category}')
+    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={formatted_response}&category={sanitized_category}')
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
 def view_prompt():
@@ -325,14 +326,15 @@ def view_prompt():
 
         # Get the response from OpenAI, passing the category for the first interaction
         response = get_openai_assistant_response(conversation, openai_client, category=category)
+        formatted_response = markdown(response)
 
         # Append the assistant's response to the conversation
-        conversation.append({"role": "assistant", "content": response})
+        conversation.append({"role": "assistant", "content": formatted_response})
 
         # Save the conversation to the session
         session['conversation'] = conversation
 
-        return render_template('results.html', prompt=prompt, response=response, conversation=conversation)
+        return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
 
     else:
         # Clear the conversation if this is a GET request to start a new conversation
