@@ -16,30 +16,7 @@
                     <div class="card m-2" style="width: 18rem;">
                         <div class="card-body">
                             <h5 class="card-title">{{ category }}</h5>
-                            <ul class="list-group mb-3">
-                                {% for subcategory in subcategories %}
-                                    <li class="list-group-item">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span>{{ subcategory }}</span>
-                                            <div>
-                                                <!-- Edit Subcategory Form -->
-                                                <form action="/edit-subcategory" method="POST" class="d-inline">
-                                                    <input type="hidden" name="category" value="{{ category }}">
-                                                    <input type="hidden" name="old_subcategory" value="{{ subcategory }}">
-                                                    <input type="text" name="new_subcategory_name" value="{{ subcategory }}" required>
-                                                    <button type="submit" class="btn btn-sm btn-warning">Edit</button>
-                                                </form>
-                                                <!-- Delete Subcategory Form -->
-                                                <form action="/delete-subcategory" method="POST" class="d-inline">
-                                                    <input type="hidden" name="category" value="{{ category }}">
-                                                    <input type="hidden" name="subcategory" value="{{ subcategory }}">
-                                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </li>
-                                {% endfor %}
-                            </ul>
+                            <a href="/manage-subcategories?category={{ category }}" class="btn btn-info mb-3">Manage Subcategories</a>
                             <!-- Edit Category Form -->
                             <form action="/edit-category" method="POST" class="mb-2">
                                 <input type="hidden" name="old_category" value="{{ category }}">

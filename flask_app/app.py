@@ -77,7 +77,15 @@ def sanitize_text(text, proper=False):
 
     # If proper is True, capitalize the text properly
     if proper:
-        text = text.title()
+        # Simple capitalization logic
+        words = text.split()
+        result = []
+        for word in words:
+            if word.isupper() and len(word) > 1:  # Preserve uppercase abbreviations
+                result.append(word)
+            else:
+                result.append(word.capitalize())
+        text = ' '.join(result)
 
     return text
 
@@ -182,9 +190,10 @@ def thank_you():
 
 @app.route('/results')
 def results():
-    prompt = request.args.get('prompt')
-    response = request.args.get('response')
-    return render_template('results.html', prompt=prompt, response=response)
+    # Retrieve the conversation from the session
+    conversation = session.get('conversation', [])
+
+    return render_template('results.html', conversation=conversation)
 
 
 
@@ -294,8 +303,20 @@ def submit_prompt():
     except Exception as e:
         return f"An error occurred: {e}", 500
 
-    response = get_openai_assistant_response(sanitized_prompt, openai_client)
+    # Prepare the conversation and pass the category's instructions if available
+    conversation = [{"role": "user", "content": sanitized_prompt}]
+    if instructions:
+        sanitized_instructions = sanitize_text(instructions)
+        conversation.insert(0, {"role": "system", "content": sanitized_instructions})
+
+    response = get_openai_assistant_response(conversation, openai_client)
     sanitized_response = sanitize_text(response)
+
+    # Append the assistant's response to the conversation
+    conversation.append({"role": "assistant", "content": sanitized_response})
+
+    # Store the conversation in the session
+    session['conversation'] = conversation
 
     return redirect(f'/thank-you?prompt={sanitized_prompt}&response={sanitized_response}&category={sanitized_category}')
 
@@ -498,6 +519,29 @@ def manage_categories():
             categories[row.category].append(row.subcategory)
 
     return render_template('manage_categories.html', categories=categories)
+
+@app.route('/manage-subcategories')
+def manage_subcategories():
+    category = request.args.get('category')
+
+    if not category:
+        return redirect('/manage-categories')
+
+    # Fetch subcategories for the specific category
+    query = f"""
+        SELECT DISTINCT subcategory
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE category = @category AND is_deleted = FALSE
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("category", "STRING", category)
+        ]
+    )
+    query_job = bigquery_client.query(query, job_config=query_config)
+    subcategories = [row.subcategory for row in query_job.result()]
+
+    return render_template('manage_subcategories.html', category=category, subcategories=subcategories)
 
 @app.route('/edit-category', methods=['POST'])
 def edit_category():
