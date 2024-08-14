@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from pypdf import PdfReader
-from flask import Flask, request, redirect, render_template, session, url_for
+from flask import Flask, request, redirect, render_template, session
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
@@ -12,6 +12,7 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
 from markdown2 import markdown
+from flask_session import Session
 
 
 ### FUNCTIONS START ###
@@ -158,7 +159,16 @@ app = Flask(__name__)
 
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
-app.permanent_session_lifetime = timedelta(minutes=10)
+# Configure server-side session storage
+app.config["SESSION_TYPE"] = "filesystem"  # You can also use "redis", "memcached", etc.
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_FILE_DIR"] = os.path.join(os.getcwd(), 'flask_session_files')
+app.config["SESSION_USE_SIGNER"] = True  # Encrypt the session cookie
+app.config["SESSION_PERMANENT"] = True
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=10)
+
+# Initialize the session
+Session(app)
 
 project_id = 'les-socialites-chat-gpt'
 dataset_id = 'prompt_manager'
