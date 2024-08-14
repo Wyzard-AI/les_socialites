@@ -4,13 +4,14 @@ import json
 import re
 import uuid
 from pypdf import PdfReader
-from flask import Flask, request, redirect, render_template, session
+from flask import Flask, request, redirect, render_template, session, url_for
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
-from datetime import datetime
+from datetime import datetime, timedelta
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
+from markdown2 import markdown
 
 
 ### FUNCTIONS START ###
@@ -77,13 +78,21 @@ def sanitize_text(text, proper=False):
 
     # If proper is True, capitalize the text properly
     if proper:
-        text = text.title()
+        # Simple capitalization logic
+        words = text.split()
+        result = []
+        for word in words:
+            if word.isupper() and len(word) > 1:  # Preserve uppercase abbreviations
+                result.append(word)
+            else:
+                result.append(word.capitalize())
+        text = ' '.join(result)
 
     return text
 
 def get_openai_assistant_response(conversation, openai_client, category=None):
     # Check if the conversation is just starting
-    if len(conversation) == 1 and category:
+    if category:
         # Default instructions
         default_instructions = """
             You are a manager at an influencer marketing company that does business in Canada and the United States.
@@ -149,6 +158,8 @@ app = Flask(__name__)
 
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
+app.permanent_session_lifetime = timedelta(minutes=10)
+
 project_id = 'les-socialites-chat-gpt'
 dataset_id = 'prompt_manager'
 table_id = 'prompts'
@@ -160,6 +171,10 @@ bigquery_client = bigquery.Client(credentials=credentials, project=service_accou
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
 
 @app.route('/')
 def index():
@@ -182,11 +197,16 @@ def thank_you():
 
 @app.route('/results')
 def results():
-    prompt = request.args.get('prompt')
-    response = request.args.get('response')
-    return render_template('results.html', prompt=prompt, response=response)
+    # Retrieve the conversation from the session
+    conversation = session.get('conversation', [])
 
+    return render_template('results.html', conversation=conversation)
 
+@app.route('/start-new-conversation')
+def start_new_conversation():
+    # Clear the session data to start a new conversation
+    session.pop('conversation', None)
+    return redirect('/view-prompt')
 
 ### ROUTES FOR PROMPTS ###
 
@@ -239,8 +259,8 @@ def manage_prompts():
 def submit_prompt():
     prompt = request.form['prompt']
     category = request.form['category']
-    subcategory = request.form.get('subcategory')  # Get subcategory from form
-    button_name = request.form.get('button_name')  # Get button_name from form
+    subcategory = request.form.get('subcategory')
+    button_name = request.form.get('button_name')
 
     if not prompt:
         return "Prompt cannot be empty", 400
@@ -253,35 +273,14 @@ def submit_prompt():
     sanitized_button_name = sanitize_text(button_name, proper=True) if button_name else None
     prompt_id = str(uuid.uuid4())
 
-    # Check for existing instructions in the same category
-    query = f"""
-        SELECT instructions
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE category = @category
-        LIMIT 1
-    """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", sanitized_category)
-        ]
-    )
-    query_job = bigquery_client.query(query, job_config=query_config)
-    result = query_job.result()
-
-    # Set instructions to the matching category's instructions if found, otherwise set to None
-    instructions = None
-    for row in result:
-        instructions = row.instructions
-        break  # Only take the first matching instruction
-
+    # Inserting prompt data into BigQuery without handling instructions here
     rows_to_insert = [
         {
             "id": prompt_id,
             "prompt": sanitized_prompt,
             "category": sanitized_category,
-            "subcategory": sanitized_subcategory,  # Insert the subcategory if provided
-            "instructions": instructions,
-            "button_name": sanitized_button_name,  # Insert the button_name if provided
+            "subcategory": sanitized_subcategory,
+            "button_name": sanitized_button_name,
             "timestamp": datetime.now().isoformat(),
             "is_deleted": False
         }
@@ -294,10 +293,20 @@ def submit_prompt():
     except Exception as e:
         return f"An error occurred: {e}", 500
 
-    response = get_openai_assistant_response(sanitized_prompt, openai_client)
-    sanitized_response = sanitize_text(response)
+    # Prepare the conversation without adding instructions here
+    conversation = [{"role": "user", "content": sanitized_prompt}]
 
-    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={sanitized_response}&category={sanitized_category}')
+    # Call the get_openai_assistant_response function to handle instructions
+    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
+    formatted_response = markdown(response)
+
+    # Append the assistant's response to the conversation
+    conversation.append({"role": "assistant", "content": formatted_response})
+
+    # Store the conversation in the session
+    session['conversation'] = conversation
+
+    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={formatted_response}&category={sanitized_category}')
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
 def view_prompt():
@@ -317,19 +326,21 @@ def view_prompt():
 
         # Get the response from OpenAI, passing the category for the first interaction
         response = get_openai_assistant_response(conversation, openai_client, category=category)
+        formatted_response = markdown(response)
 
         # Append the assistant's response to the conversation
-        conversation.append({"role": "assistant", "content": response})
+        conversation.append({"role": "assistant", "content": formatted_response})
 
         # Save the conversation to the session
         session['conversation'] = conversation
 
-        return render_template('results.html', prompt=prompt, response=response, conversation=conversation)
+        return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
 
     else:
-        # Initialize a new conversation if this is a GET request
-        session['conversation'] = []
-        return redirect('/')
+        # Clear the conversation if this is a GET request to start a new conversation
+        session.pop('conversation', None)
+        # Render results.html with an empty conversation and no prompt/response
+        return render_template('results.html', conversation=[], prompt='', response='')
 
 @app.route('/assign-button-name', methods=['POST'])
 def assign_button_name():
@@ -499,6 +510,29 @@ def manage_categories():
 
     return render_template('manage_categories.html', categories=categories)
 
+@app.route('/manage-subcategories')
+def manage_subcategories():
+    category = request.args.get('category')
+
+    if not category:
+        return redirect('/manage-categories')
+
+    # Fetch subcategories for the specific category
+    query = f"""
+        SELECT DISTINCT subcategory
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE category = @category AND is_deleted = FALSE
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("category", "STRING", category)
+        ]
+    )
+    query_job = bigquery_client.query(query, job_config=query_config)
+    subcategories = [row.subcategory for row in query_job.result()]
+
+    return render_template('manage_subcategories.html', category=category, subcategories=subcategories)
+
 @app.route('/edit-category', methods=['POST'])
 def edit_category():
     old_category = request.form['old_category']
@@ -508,7 +542,7 @@ def edit_category():
         return "Category names cannot be empty", 400
 
     # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
     original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
     # Step 2: Copy data to the new table, updating the category name
@@ -549,7 +583,7 @@ def edit_subcategory():
         return "Category, old subcategory, and new subcategory names cannot be empty", 400
 
     # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
     original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
     # Step 2: Copy data to the new table, updating the subcategory name
@@ -690,4 +724,4 @@ def update_instructions():
     return redirect('/')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

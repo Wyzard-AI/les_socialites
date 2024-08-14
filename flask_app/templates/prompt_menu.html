@@ -42,6 +42,7 @@
                 {% for prompt in prompts %}
                     <form action="/view-prompt" method="POST" enctype="multipart/form-data" class="m-2">
                         <input type="hidden" name="prompt" value="{{ prompt.prompt }}">
+                        <input type="hidden" name="category" value="{{ request.args.get('category') }}"> <!-- This line should be inside the loop -->
                         <div class="mb-3">
                             <label for="file" class="form-label">Upload a Document (optional):</label>
                             <input type="file" class="form-control" name="file" accept=".txt,.docx,.pdf">

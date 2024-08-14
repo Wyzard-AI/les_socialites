@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="container my-5">
-        <h1 class="text-center mb-4">Manage/Delete Prompts</h1>
+        <h1 class="text-center mb-4">Manage Prompts</h1>
 
         <!-- Dropdown for Selecting Category -->
         <div class="text-center mb-4">
@@ -41,7 +41,7 @@
                                 <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
                                 <div class="mb-3">
                                     <label for="new_prompt_text" class="form-label">Edit Prompt:</label>
-                                    <textarea class="form-control" name="new_prompt_text" rows="3">{{ prompt.prompt }}</textarea>
+                                    <textarea class="form-control" name="new_prompt_text" rows="6">{{ prompt.prompt }}</textarea>
                                 </div>
                                 <button type="submit" class="btn btn-warning">Edit Prompt</button>
                             </form>
@@ -54,12 +54,6 @@
                                     <input type="text" class="form-control" name="button_name" value="{{ prompt.button_name }}">
                                 </div>
                                 <button type="submit" class="btn btn-info">Assign Button Name</button>
-                            </form>
-
-                            <!-- Form for Deleting Prompt -->
-                            <form action="/delete-prompt" method="POST" class="mt-2">
-                                <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
-                                <button type="submit" class="btn btn-danger">Delete Prompt</button>
                             </form>
                         </div>
                     </div>
