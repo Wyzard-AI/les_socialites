@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from pypdf import PdfReader
-from flask import Flask, request, redirect, render_template, session, url_for
+from flask import Flask, request, redirect, render_template, session
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
@@ -12,7 +12,7 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
 from markdown2 import markdown
-
+#from urllib.parse import quote
 
 ### FUNCTIONS START ###
 def get_secret(secret_name):
@@ -202,8 +202,8 @@ def results():
 
     return render_template('results.html', conversation=conversation)
 
-@app.route('/start-new-conversation')
-def start_new_conversation():
+@app.route('/clear-conversation')
+def clear_conversation():
     # Clear the session data to start a new conversation
     session.pop('conversation', None)
     return redirect('/view-prompt')
@@ -298,15 +298,18 @@ def submit_prompt():
 
     # Call the get_openai_assistant_response function to handle instructions
     response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
-    formatted_response = markdown(response)
+    #formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
-    conversation.append({"role": "assistant", "content": formatted_response})
+    #conversation.append({"role": "assistant", "content": formatted_response})
+    conversation.append({"role": "assistant", "content": response})
 
     # Store the conversation in the session
     session['conversation'] = conversation
 
-    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={formatted_response}&category={sanitized_category}')
+    # URL-encode the prompt, response, and category to ensure they are safe for use in a URL
+    #return redirect(f'/thank-you?prompt={sanitized_prompt}&response={quote(formatted_response)}&category={sanitized_category}')
+    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={response}&category={sanitized_category}')
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
 def view_prompt():
