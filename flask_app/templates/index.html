@@ -4,18 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prompt Manager</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #121212; /* Dark background */
+            color: #e0e0e0; /* Light text */
+        }
+
+        h1 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .container {
+            max-width: 800px; /* Increased width for the container */
+            margin: 0 auto;
+        }
+
+        .card {
+            background-color: #1e1e1e; /* Darker grey for cards */
+            border: none;
+            color: #e0e0e0; /* Light text color */
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            padding: 25px; /* Increased padding for spacing */
+            text-align: center; /* Center the text */
+        }
+
+        .card-title {
+            font-size: 18px; /* Smaller font size for card titles */
+            margin-bottom: 20px; /* Increase bottom margin for better spacing */
+        }
+
+        .card-text, .form-label {
+            font-size: 16px; /* Regular text size */
+            margin-bottom: 20px;
+        }
+
+        .form-control {
+            background-color: #2c2c2c; /* Dark input background */
+            color: #ffffff; /* White text color */
+            border: 1px solid #333;
+            width: 100%; /* Full width for input boxes */
+            padding: 10px;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 15px; /* Increase space between inputs */
+        }
+
+        .btn-primary, .btn-success, .btn-warning, .btn-danger {
+            background-color: #8a2be2; /* Matte purple color */
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none; /* Remove underline */
+            display: inline-block;
+            width: 100%; /* Full width for buttons */
+            box-sizing: border-box; /* Ensure padding doesn't affect width */
+            margin-top: 15px; /* Increase space between button and previous content */
+        }
+
+        .btn-primary:hover, .btn-success:hover, .btn-warning:hover, .btn-danger:hover {
+            background-color: #6a1db7; /* Darker matte purple on hover */
+        }
+
+        textarea {
+            height: 150px; /* Increased height for textarea */
+        }
+
+        /* Custom style for dropdown select */
+        select.form-control option {
+            background-color: #2c2c2c; /* Darker dropdown background */
+            color: #ffffff; /* White text color */
+        }
+
+        select.form-control option:checked,
+        select.form-control option:hover {
+            background-color: #8a2be2; /* Matte purple for selected and hover state */
+        }
+    </style>
 </head>
 <body>
     <div class="container my-5">
-        <h1 class="text-center mb-4">Welcome to the Prompt Manager</h1>
+        <h1>Welcome to the Prompt Manager</h1>
         <div class="row justify-content-center">
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <!-- Option to Select from Prompt Categories -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">Browse Categories</h5>
+                        <h5 class="card-title">📂 Browse Categories 📂</h5>
                         <p class="card-text">Browse and select from available prompt categories.</p>
                         <a href="/prompt-categories" class="btn btn-success">Go to Categories</a>
                     </div>
@@ -23,7 +107,7 @@
                 <!-- Option to Submit a New Prompt -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">Submit a New Prompt</h5>
+                        <h5 class="card-title">💡 Submit a New Prompt 💡</h5>
                         <p class="card-text">Have a new idea or question? Submit it here to get a response.</p>
                         <!-- Form to Submit New Prompt -->
                         <form action="/submit-prompt" method="POST">
@@ -50,7 +134,7 @@
                 <!-- Option to Update Instructions -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">Update Instructions</h5>
+                        <h5 class="card-title">🔄 Update Instructions 🔄</h5>
                         <form action="/update-instructions" method="POST">
                             <div class="mb-3">
                                 <label for="category" class="form-label">Select Category:</label>
@@ -71,7 +155,7 @@
                 <!-- Option to Manage Prompts -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">Manage Prompts</h5>
+                        <h5 class="card-title">🛠️ Manage Prompts 🛠️</h5>
                         <p class="card-text">Edit/delete prompts or assign button names.</p>
                         <a href="/manage-prompts" class="btn btn-warning">Go to Manage Prompts</a>
                     </div>
@@ -79,7 +163,7 @@
                 <!-- Option to Manage Categories -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">Manage Categories</h5>
+                        <h5 class="card-title">📊 Manage Categories 📊</h5>
                         <p class="card-text">Edit/delete categories.</p>
                         <a href="/manage-categories" class="btn btn-danger">Go to Manage Categories</a>
                     </div>
@@ -87,7 +171,5 @@
             </div>
         </div>
     </div>
-    <!-- Bootstrap JS and dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
