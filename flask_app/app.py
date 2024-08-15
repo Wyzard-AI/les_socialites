@@ -12,7 +12,7 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
 from markdown2 import markdown
-from urllib.parse import quote
+#from urllib.parse import quote
 
 ### FUNCTIONS START ###
 def get_secret(secret_name):
