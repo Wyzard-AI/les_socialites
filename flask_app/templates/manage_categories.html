@@ -116,11 +116,38 @@
             background-color: #6a1db7;
         }
 
+        /* New styles for Add Categories form */
+        .add-categories-form {
+            background-color: #1e1e1e;
+            border: none;
+            color: #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            padding: 25px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .btn-add-categories {
+            background-color: #4caf50; /* Green for Add Categories button */
+        }
+
     </style>
 </head>
 <body>
     <div class="container my-5">
         <h1 class="text-center mb-4">📊 Manage Categories 📊</h1>
+
+        <!-- Add Categories Form -->
+        <div class="add-categories-form">
+            <h5 class="card-title">Add New Categories</h5>
+            <form action="/add-categories" method="POST">
+                <label for="categories" class="form-label">Enter Categories (comma-separated):</label>
+                <input type="text" class="form-control" name="categories" id="categories" placeholder="e.g., Marketing, Sales, Customer Service" required>
+                <button type="submit" class="btn btn-add-categories">Add Categories</button>
+            </form>
+        </div>
+
         <div class="d-flex">
             {% if categories %}
                 {% for category, subcategories in categories.items() %}

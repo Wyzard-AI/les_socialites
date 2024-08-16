@@ -116,8 +116,12 @@
                                 <textarea class="form-control" id="prompt" name="prompt" rows="4" required></textarea>
                             </div>
                             <div class="mb-3">
-                                <label for="category" class="form-label">Enter Category:</label>
-                                <input type="text" class="form-control" id="category" name="category" required>
+                                <label for="category" class="form-label">Select Category:</label>
+                                <select class="form-control" id="category" name="category" required>
+                                    {% for category in categories %}
+                                        <option value="{{ category }}">{{ category }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="mb-3">
                                 <label for="subcategory" class="form-label">Enter Subcategory (optional):</label>
