@@ -176,24 +176,46 @@ openai_client = OpenAI(api_key=openai_api_key)
 def make_session_permanent():
     session.permanent = True
 
+# @app.route('/')
+# def index():
+#     # Fetch categories from BigQuery
+#     query = f"""
+#         SELECT DISTINCT category
+#         FROM `{project_id}.{dataset_id}.{table_id}`
+#         WHERE is_deleted = FALSE
+#     """
+#     query_job = bigquery_client.query(query)
+#     categories = [row.category for row in query_job.result()]
+
+#     return render_template('index.html', categories=categories)
+
 @app.route('/')
 def index():
-    # Fetch categories from BigQuery
-    query = f"""
-        SELECT DISTINCT category
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE is_deleted = FALSE
-    """
-    query_job = bigquery_client.query(query)
-    categories = [row.category for row in query_job.result()]
-
+    categories = ['Sales',
+                'Marketing',
+                'PR',
+                'Social Media',
+                'Web',
+                'Legal Advisor',
+                'Event Organizer',
+                'Grammar/Translation',
+                'Multi-Channel Campaign',
+                'HR',
+                'SEO',
+                'Humanizer',
+                'eCommerce',
+                'Data Analyst',
+                'Project Manager',
+                'Customer Service',
+                'Business',
+                'Business Developer',
+                'Plagiarism Checker',
+                'Influencer Marketing',
+                'Administrative Assistant',
+                'Accounting',
+                'Design',
+                'Personal Assistant']
     return render_template('index.html', categories=categories)
-
-@app.route('/thank-you')
-def thank_you():
-    prompt = request.args.get('prompt')
-    response = request.args.get('response')
-    return render_template('thank_you.html', prompt=prompt, response=response)
 
 @app.route('/results')
 def results():
@@ -294,22 +316,22 @@ def submit_prompt():
         return f"An error occurred: {e}", 500
 
     # Prepare the conversation without adding instructions here
-    conversation = [{"role": "user", "content": sanitized_prompt}]
+    conversation = [{"role": "user", "content": prompt}]
 
     # Call the get_openai_assistant_response function to handle instructions
     response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
-    #formatted_response = markdown(response)
+    formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
     #conversation.append({"role": "assistant", "content": formatted_response})
-    conversation.append({"role": "assistant", "content": response})
+    conversation.append({"role": "assistant", "content": formatted_response})
 
     # Store the conversation in the session
     session['conversation'] = conversation
 
     # URL-encode the prompt, response, and category to ensure they are safe for use in a URL
-    #return redirect(f'/thank-you?prompt={sanitized_prompt}&response={quote(formatted_response)}&category={sanitized_category}')
-    return redirect(f'/thank-you?prompt={sanitized_prompt}&response={response}&category={sanitized_category}')
+    #return redirect(f'/thank-you?prompt={prompt}&response={quote(formatted_response)}&category={sanitized_category}')
+    return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
 def view_prompt():
@@ -480,6 +502,33 @@ def edit_prompt():
 
 @app.route('/prompt-categories')
 def prompt_categories():
+    # Dictionary of categories with their corresponding emojis
+    categories_with_emojis = {
+        "Sales": "💰",
+        "Marketing": "📣",
+        "PR": "📰",
+        "Social Media": "❤️",
+        "Web": "🌐",
+        "Legal Advisor": "⚖️",
+        "Event Organizer": "🎉",
+        "Grammar/Translation": "✍️",
+        "Multi-Channel Campaign": "💌",
+        "HR": "💼",
+        "SEO": "🔍",
+        "Humanizer": "🧠",
+        "eCommerce": "🛒",
+        "Data Analyst": "📊",
+        "Project Manager": "📋",
+        "Customer Service": "📞",
+        "Business Developer": "🤝",
+        "Plagiarism Checker": "✅",
+        "Influencer Marketing": "🤳",
+        "Administrative Assistant": "💻",
+        "Accounting": "📄",
+        "Design": "🎨",
+        "Personal Assistant": "🤖",
+    }
+
     # Fetch categories sorted by usage count
     query = f"""
         SELECT category, COUNT(*) as usage_count
@@ -491,7 +540,10 @@ def prompt_categories():
     query_job = bigquery_client.query(query)
     categories = [row.category for row in query_job.result()]
 
-    return render_template('prompt_categories.html', categories=categories)
+    # Build a new dictionary with categories and their emojis
+    categories_with_emojis_filtered = {category: categories_with_emojis.get(category, '') for category in categories}
+
+    return render_template('prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
 
 @app.route('/manage-categories')
 def manage_categories():
@@ -536,6 +588,140 @@ def manage_subcategories():
 
     return render_template('manage_subcategories.html', category=category, subcategories=subcategories)
 
+@app.route('/add-categories', methods=['POST'])
+def add_categories():
+    categories_input = request.form['categories']  # Expecting a single input string
+
+    if not categories_input:
+        return "No categories provided", 400
+
+    # Split the input string by commas and strip any whitespace
+    categories = [category.strip() for category in categories_input.split(',')]
+
+    # Sanitize and prepare the categories
+    sanitized_categories = [sanitize_text(category, proper=True) for category in categories]
+
+    # Prepare the data to be loaded
+    rows_to_insert = [
+        {
+            "id": str(uuid.uuid4()),
+            "prompt": "Placeholder",
+            "category": category,
+            "subcategory": None,
+            "button_name": None,
+            "timestamp": datetime.now().isoformat(),
+            "is_deleted": False
+        }
+        for category in sanitized_categories
+    ]
+
+    # Write the data to a JSON file
+    json_filename = "/tmp/categories_to_insert.json"
+    try:
+        with open(json_filename, 'w') as json_file:
+            for row in rows_to_insert:
+                json.dump(row, json_file)
+                json_file.write('\n')  # Write each JSON object on a new line (NDJSON format)
+
+        # Define the BigQuery table
+        table_id = "les-socialites-chat-gpt.prompt_manager.prompts"
+
+        # Load the JSON file into BigQuery
+        job_config = bigquery.LoadJobConfig(
+            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+            schema=[
+                bigquery.SchemaField("id", "STRING"),
+                bigquery.SchemaField("prompt", "STRING"),
+                bigquery.SchemaField("category", "STRING"),
+                bigquery.SchemaField("subcategory", "STRING"),
+                bigquery.SchemaField("button_name", "STRING"),
+                bigquery.SchemaField("timestamp", "TIMESTAMP"),
+                bigquery.SchemaField("is_deleted", "BOOLEAN"),
+            ],
+        )
+
+        with open(json_filename, "rb") as source_file:
+            load_job = bigquery_client.load_table_from_file(source_file, table_id, job_config=job_config)
+
+        load_job.result()  # Wait for the job to complete
+
+        if load_job.errors:
+            return f"Encountered errors while loading data: {load_job.errors}", 500
+    finally:
+        # Delete the temporary JSON file after the load is complete
+        if os.path.exists(json_filename):
+            os.remove(json_filename)
+
+    return redirect('/manage-categories')
+
+@app.route('/add-subcategories', methods=['POST'])
+def add_subcategories():
+    category = request.form['category']
+    subcategories_input = request.form['subcategories']  # Expecting a single input string
+
+    if not category or not subcategories_input:
+        return "Category and subcategories cannot be empty", 400
+
+    # Split the input string by commas and strip any whitespace
+    subcategories = [subcategory.strip() for subcategory in subcategories_input.split(',')]
+
+    # Sanitize and prepare the subcategories
+    sanitized_subcategories = [sanitize_text(subcategory, proper=True) for subcategory in subcategories]
+
+    # Prepare the data to be loaded
+    rows_to_insert = [
+        {
+            "id": str(uuid.uuid4()),
+            "prompt": "placeholder",
+            "category": category,
+            "subcategory": subcategory,
+            "button_name": None,
+            "timestamp": datetime.now().isoformat(),
+            "is_deleted": False
+        }
+        for subcategory in sanitized_subcategories
+    ]
+
+    # Write the data to a JSON file
+    json_filename = "/tmp/subcategories_to_insert.json"
+    try:
+        with open(json_filename, 'w') as json_file:
+            for row in rows_to_insert:
+                json.dump(row, json_file)
+                json_file.write('\n')  # Write each JSON object on a new line (NDJSON format)
+
+        # Define the BigQuery table
+        table_id = "les-socialites-chat-gpt.prompt_manager.prompts"
+
+        # Load the JSON file into BigQuery
+        job_config = bigquery.LoadJobConfig(
+            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+            schema=[
+                bigquery.SchemaField("id", "STRING"),
+                bigquery.SchemaField("prompt", "STRING"),
+                bigquery.SchemaField("category", "STRING"),
+                bigquery.SchemaField("subcategory", "STRING"),
+                bigquery.SchemaField("button_name", "STRING"),
+                bigquery.SchemaField("timestamp", "TIMESTAMP"),
+                bigquery.SchemaField("is_deleted", "BOOLEAN"),
+            ],
+        )
+
+        with open(json_filename, "rb") as source_file:
+            load_job = bigquery_client.load_table_from_file(source_file, table_id, job_config=job_config)
+
+        load_job.result()  # Wait for the job to complete
+
+        if load_job.errors:
+            return f"Encountered errors while loading data: {load_job.errors}", 500
+
+    finally:
+        # Delete the temporary JSON file after the load is complete
+        if os.path.exists(json_filename):
+            os.remove(json_filename)
+
+    return redirect('/manage-categories')
+
 @app.route('/edit-category', methods=['POST'])
 def edit_category():
     old_category = request.form['old_category']
@@ -543,6 +729,9 @@ def edit_category():
 
     if not old_category or not new_category_name:
         return "Category names cannot be empty", 400
+
+    # Sanitize the new category name for proper capitalization
+    new_category_name = sanitize_text(new_category_name, proper=True)
 
     # Step 1: Create a new table (temporary or with a new name)
     temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
@@ -584,6 +773,9 @@ def edit_subcategory():
 
     if not category or not old_subcategory or not new_subcategory_name:
         return "Category, old subcategory, and new subcategory names cannot be empty", 400
+
+    # Sanitize the new category name for proper capitalization
+    new_subcategory_name = sanitize_text(new_subcategory_name, proper=True)
 
     # Step 1: Create a new table (temporary or with a new name)
     temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
