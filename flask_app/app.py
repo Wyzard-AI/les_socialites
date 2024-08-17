@@ -12,7 +12,6 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
 from markdown2 import markdown
-#from urllib.parse import quote
 
 ### FUNCTIONS START ###
 def get_secret(secret_name):
@@ -160,6 +159,9 @@ app.secret_key = get_secret('les-socialites-app-secret-key')
 
 app.permanent_session_lifetime = timedelta(minutes=10)
 
+# Set maximum file size to 16MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
 project_id = 'les-socialites-chat-gpt'
 dataset_id = 'prompt_manager'
 table_id = 'prompts'
@@ -176,19 +178,6 @@ openai_client = OpenAI(api_key=openai_api_key)
 def make_session_permanent():
     session.permanent = True
 
-# @app.route('/')
-# def index():
-#     # Fetch categories from BigQuery
-#     query = f"""
-#         SELECT DISTINCT category
-#         FROM `{project_id}.{dataset_id}.{table_id}`
-#         WHERE is_deleted = FALSE
-#     """
-#     query_job = bigquery_client.query(query)
-#     categories = [row.category for row in query_job.result()]
-
-#     return render_template('index.html', categories=categories)
-
 @app.route('/')
 def index():
     categories = ['Sales',
@@ -197,8 +186,8 @@ def index():
                 'Social Media',
                 'Web',
                 'Legal Advisor',
-                'Event Organizer',
-                'Grammar/Translation',
+                'Event Planning',
+                'Spellcheck/Translation',
                 'Multi-Channel Campaign',
                 'HR',
                 'SEO',
@@ -235,26 +224,43 @@ def clear_conversation():
 @app.route('/prompt-menu')
 def prompt_menu():
     category = request.args.get('category')
-    subcategory = request.args.get('subcategory')
 
-    # Fetch distinct subcategories based on the selected category
-    query = f"""
-        SELECT DISTINCT subcategory
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE is_deleted = FALSE AND category = @category AND subcategory IS NOT NULL
-    """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", category)
-        ]
-    )
+    if category:
+        # Fetch distinct subcategories and their associated prompts based on the selected category
+        query = f"""
+            SELECT subcategory, prompt, button_name
+            FROM `{project_id}.{dataset_id}.{table_id}`
+            WHERE is_deleted = FALSE AND category = @category
+            ORDER BY subcategory, prompt
+        """
+        query_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("category", "STRING", category)
+            ]
+        )
+    else:
+        # Fetch all prompts when no category is specified
+        query = f"""
+            SELECT category, subcategory, prompt, button_name
+            FROM `{project_id}.{dataset_id}.{table_id}`
+            WHERE is_deleted = FALSE
+            ORDER BY category, subcategory, prompt
+        """
+        query_config = None  # No query parameters needed for this query
+
     query_job = bigquery_client.query(query, job_config=query_config)
-    subcategories = [row.subcategory for row in query_job.result()]
 
-    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=category, subcategory=subcategory)
+    # Organize prompts by subcategory
+    prompts_by_subcategory = {}
+    for row in query_job.result():
+        if row.subcategory not in prompts_by_subcategory:
+            prompts_by_subcategory[row.subcategory] = []
+        prompts_by_subcategory[row.subcategory].append({
+            'prompt': row.prompt,
+            'button_name': row.button_name
+        })
 
-    return render_template('prompt_menu.html', prompts=prompts, subcategories=subcategories)
-
+    return render_template('prompt_menu.html', category=category, prompts_by_subcategory=prompts_by_subcategory)
 
 @app.route('/manage-prompts')
 def manage_prompts():
@@ -323,14 +329,12 @@ def submit_prompt():
     formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
-    #conversation.append({"role": "assistant", "content": formatted_response})
     conversation.append({"role": "assistant", "content": formatted_response})
 
     # Store the conversation in the session
     session['conversation'] = conversation
 
     # URL-encode the prompt, response, and category to ensure they are safe for use in a URL
-    #return redirect(f'/thank-you?prompt={prompt}&response={quote(formatted_response)}&category={sanitized_category}')
     return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
@@ -510,8 +514,8 @@ def prompt_categories():
         "Social Media": "❤️",
         "Web": "🌐",
         "Legal Advisor": "⚖️",
-        "Event Organizer": "🎉",
-        "Grammar/Translation": "✍️",
+        "Event Planning": "🎉",
+        "Spellcheck/Translation": "✍️",
         "Multi-Channel Campaign": "💌",
         "HR": "💼",
         "SEO": "🔍",
@@ -605,7 +609,7 @@ def add_categories():
     rows_to_insert = [
         {
             "id": str(uuid.uuid4()),
-            "prompt": "Placeholder",
+            "prompt": None,
             "category": category,
             "subcategory": None,
             "button_name": None,
@@ -672,7 +676,7 @@ def add_subcategories():
     rows_to_insert = [
         {
             "id": str(uuid.uuid4()),
-            "prompt": "placeholder",
+            "prompt": None,
             "category": category,
             "subcategory": subcategory,
             "button_name": None,
