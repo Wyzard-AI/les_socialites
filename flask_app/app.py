@@ -21,21 +21,13 @@ def get_secret(secret_name):
     secret_payload = response.payload.data.decode('UTF-8')
     return secret_payload
 
-def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, include_deleted=False, category=None, subcategory=None):
+def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=None, subcategory=None):
     table_ref = f"`{project_id}.{dataset_id}.{table_id}`"
 
-    if include_deleted:
-        query = f"""
-            SELECT id, prompt, category, subcategory, button_name
-            FROM {table_ref}
-            WHERE 1=1
-        """
-    else:
-        query = f"""
-            SELECT id, prompt, category, subcategory, button_name
-            FROM {table_ref}
-            WHERE is_deleted = FALSE
-        """
+    query = f"""
+        SELECT id, prompt, category, subcategory, button_name
+        FROM {table_ref}
+    """
 
     query_params = []
     if category:
@@ -129,7 +121,8 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
             model="gpt-4o",
             messages=conversation
         )
-        return response.choices[0].message.content
+        disclaimer_text = "\n\nAnswers from ChatGPT are not always 100% accurate so it's important to verify information crucial to your business."
+        return response.choices[0].message.content + disclaimer_text
     except Exception as e:
         return f"An error occurred: {e}"
 
@@ -203,7 +196,9 @@ def index():
                 'Administrative Assistant',
                 'Accounting',
                 'Design',
-                'Personal Assistant']
+                'Personal Assistant',
+                'Content Creation',
+                'Influencer']
     return render_template('index.html', categories=categories)
 
 @app.route('/results')
@@ -230,7 +225,7 @@ def prompt_menu():
         query = f"""
             SELECT subcategory, prompt, button_name
             FROM `{project_id}.{dataset_id}.{table_id}`
-            WHERE is_deleted = FALSE AND category = @category
+            WHERE category = @category
             ORDER BY subcategory, prompt
         """
         query_config = bigquery.QueryJobConfig(
@@ -243,7 +238,6 @@ def prompt_menu():
         query = f"""
             SELECT category, subcategory, prompt, button_name
             FROM `{project_id}.{dataset_id}.{table_id}`
-            WHERE is_deleted = FALSE
             ORDER BY category, subcategory, prompt
         """
         query_config = None  # No query parameters needed for this query
@@ -270,7 +264,7 @@ def manage_prompts():
     query = f"""
         SELECT DISTINCT category
         FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE is_deleted = FALSE
+        ORDER BY category
     """
     query_job = bigquery_client.query(query)
     categories = [row.category for row in query_job.result()]
@@ -309,8 +303,7 @@ def submit_prompt():
             "category": sanitized_category,
             "subcategory": sanitized_subcategory,
             "button_name": sanitized_button_name,
-            "timestamp": datetime.now().isoformat(),
-            "is_deleted": False
+            "timestamp": datetime.now().isoformat()
         }
     ]
 
@@ -393,8 +386,7 @@ def assign_button_name():
             subcategory,
             instructions,
             CASE WHEN id = @prompt_id THEN @button_name ELSE button_name END as button_name,
-            timestamp,
-            is_deleted
+            timestamp
         FROM {original_table_ref}
     """
     query_config = bigquery.QueryJobConfig(
@@ -425,9 +417,17 @@ def delete_prompt():
     # Step 2: Copy data to the new table, excluding the selected prompt
     query = f"""
         CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT *
+        SELECT
+            CASE WHEN id = @prompt_id THEN NULL
+            ELSE id
+        END AS id,
+        prompt,
+        category,
+        subcategory,
+        instructions,
+        button_name,
+        timestamp
         FROM {original_table_ref}
-        WHERE id != @prompt_id
     """
     query_config = bigquery.QueryJobConfig(
         query_parameters=[
@@ -477,8 +477,7 @@ def edit_prompt():
             subcategory,
             instructions,
             button_name,
-            timestamp,
-            is_deleted
+            timestamp
         FROM {original_table_ref}
     """
     query_config = bigquery.QueryJobConfig(
@@ -531,15 +530,15 @@ def prompt_categories():
         "Accounting": "📄",
         "Design": "🎨",
         "Personal Assistant": "🤖",
+        "Content Creation": "📸",
+        "Influencer": "🤩"
     }
 
     # Fetch categories sorted by usage count
     query = f"""
-        SELECT category, COUNT(*) as usage_count
+        SELECT DISTINCT category
         FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE is_deleted = FALSE
-        GROUP BY category
-        ORDER BY usage_count DESC
+        ORDER BY category
     """
     query_job = bigquery_client.query(query)
     categories = [row.category for row in query_job.result()]
@@ -555,7 +554,7 @@ def manage_categories():
     query = f"""
         SELECT DISTINCT category, subcategory
         FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE is_deleted = FALSE
+        ORDER BY category, subcategory
     """
     query_job = bigquery_client.query(query)
     results = query_job.result()
@@ -580,7 +579,8 @@ def manage_subcategories():
     query = f"""
         SELECT DISTINCT subcategory
         FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE category = @category AND is_deleted = FALSE
+        WHERE category = @category
+        ORDER BY subcategory
     """
     query_config = bigquery.QueryJobConfig(
         query_parameters=[
@@ -613,8 +613,7 @@ def add_categories():
             "category": category,
             "subcategory": None,
             "button_name": None,
-            "timestamp": datetime.now().isoformat(),
-            "is_deleted": False
+            "timestamp": datetime.now().isoformat()
         }
         for category in sanitized_categories
     ]
@@ -640,7 +639,6 @@ def add_categories():
                 bigquery.SchemaField("subcategory", "STRING"),
                 bigquery.SchemaField("button_name", "STRING"),
                 bigquery.SchemaField("timestamp", "TIMESTAMP"),
-                bigquery.SchemaField("is_deleted", "BOOLEAN"),
             ],
         )
 
@@ -680,8 +678,7 @@ def add_subcategories():
             "category": category,
             "subcategory": subcategory,
             "button_name": None,
-            "timestamp": datetime.now().isoformat(),
-            "is_deleted": False
+            "timestamp": datetime.now().isoformat()
         }
         for subcategory in sanitized_subcategories
     ]
@@ -707,7 +704,6 @@ def add_subcategories():
                 bigquery.SchemaField("subcategory", "STRING"),
                 bigquery.SchemaField("button_name", "STRING"),
                 bigquery.SchemaField("timestamp", "TIMESTAMP"),
-                bigquery.SchemaField("is_deleted", "BOOLEAN"),
             ],
         )
 
@@ -751,8 +747,7 @@ def edit_category():
             subcategory,
             instructions,
             button_name,
-            timestamp,
-            is_deleted
+            timestamp
         FROM {original_table_ref}
     """
     query_config = bigquery.QueryJobConfig(
@@ -792,11 +787,14 @@ def edit_subcategory():
             id,
             prompt,
             category,
-            CASE WHEN category = @category AND subcategory = @old_subcategory THEN @new_subcategory_name ELSE subcategory END as subcategory,
+            CASE
+                WHEN category = @category AND subcategory = @old_subcategory
+                    THEN @new_subcategory_name
+                ELSE subcategory
+            END as subcategory,
             instructions,
             button_name,
-            timestamp,
-            is_deleted
+            timestamp
         FROM {original_table_ref}
     """
     query_config = bigquery.QueryJobConfig(
@@ -828,9 +826,18 @@ def delete_category():
     # Step 2: Copy data to the new table, excluding the selected category
     query = f"""
         CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT *
+        SELECT
+            id,
+            prompt,
+            CASE
+                WHEN category = @category THEN NULL
+                ELSE category
+            END AS category,
+            subcategory,
+            instructions,
+            button_name,
+            timestamp
         FROM {original_table_ref}
-        WHERE category != @category
     """
     query_config = bigquery.QueryJobConfig(
         query_parameters=[
@@ -853,16 +860,25 @@ def delete_subcategory():
     if not category or not subcategory:
         return "Category and subcategory names cannot be empty", 400
 
-    # Step 1: Create a new table (temporary or with a new name)
+    # Step 1: Create a new table (temporary or with a new name) with updated data
     temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
     original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
-    # Step 2: Copy data to the new table, excluding the selected subcategory
+    # Step 2: Copy data to the new table, setting the subcategory to NULL where it matches the category and subcategory
     query = f"""
         CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT *
+        SELECT
+            id,
+            prompt,
+            category,
+            CASE
+                WHEN category = @category AND subcategory = @subcategory THEN NULL
+                ELSE subcategory
+            END AS subcategory,
+            instructions,
+            button_name,
+            timestamp
         FROM {original_table_ref}
-        WHERE NOT (category = @category AND subcategory = @subcategory)
     """
     query_config = bigquery.QueryJobConfig(
         query_parameters=[
@@ -902,10 +918,13 @@ def update_instructions():
             prompt,
             category,
             subcategory,
-            CASE WHEN category = @category THEN @new_instructions ELSE instructions END as instructions,
+            CASE
+                WHEN category = @category
+                    THEN @new_instructions
+                ELSE instructions
+            END AS instructions,
             button_name,
-            timestamp,
-            is_deleted
+            timestamp
         FROM {original_table_ref}
     """
     query_config = bigquery.QueryJobConfig(
