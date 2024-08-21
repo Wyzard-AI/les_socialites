@@ -1,7 +1,7 @@
 runtime: python310
 entrypoint: gunicorn -b :$PORT app:app
 
-instance_class: F1  # Lower cost instance
+instance_class: F4  # Lower cost instance
 
 automatic_scaling:
   target_cpu_utilization: 0.75

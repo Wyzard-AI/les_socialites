@@ -15,6 +15,7 @@ distro==1.9.0
 exceptiongroup==1.2.2
 Flask==3.0.3
 Flask-Session==0.8.0
+Flask-Mail==0.10.0
 google-api-core==2.19.1
 google-auth==2.33.0
 google-cloud-bigquery==3.25.0
