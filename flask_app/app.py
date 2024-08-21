@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from pypdf import PdfReader
-from flask import Flask, request, redirect, render_template, session
+from flask import Flask, request, redirect, render_template, session, flash, url_for
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
@@ -12,6 +12,7 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 from docx import Document
 from markdown2 import markdown
+from flask_mail import Mail, Message
 
 ### FUNCTIONS START ###
 def get_secret(secret_name):
@@ -121,8 +122,8 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
             model="gpt-4o",
             messages=conversation
         )
-        disclaimer_text = "\n\nAnswers from ChatGPT are not always 100% accurate so it's important to verify information crucial to your business."
-        return response.choices[0].message.content + disclaimer_text
+        # disclaimer_text = "\n\nAnswers from ChatGPT are not always 100% accurate so it's important to verify information crucial to your business."
+        return response.choices[0].message.content # + disclaimer_text
     except Exception as e:
         return f"An error occurred: {e}"
 
@@ -166,6 +167,16 @@ bigquery_client = bigquery.Client(credentials=credentials, project=service_accou
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
+
+# Flask-Mail configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'jenius.feedback@gmail.com'
+app.config['MAIL_PASSWORD'] = get_secret('jenius-ai-app-email-password')
+app.config['MAIL_DEFAULT_SENDER'] = 'jenius.feedback@gmail.com'
+
+mail = Mail(app)
 
 @app.before_request
 def make_session_permanent():
@@ -941,5 +952,34 @@ def update_instructions():
 
     return redirect('/')
 
+### ROUTES FOR FEEDBACK/MAIL ###
+
+@app.route('/feedback')
+def feedback():
+    return render_template('feedback.html')
+
+@app.route('/send-feedback', methods=['POST'])
+def send_feedback():
+    # Retrieve form data
+    message_content = request.form.get('message')
+    subject = request.form.get('subject')
+
+    # Validate form data
+    if not message_content or not subject:
+        flash("All fields are required.")
+        return redirect(url_for('feedback'))
+
+    # Send email
+    try:
+        msg = Message(subject=f"{subject}", recipients=["info@lessocialites.com"])
+        msg.body = message_content
+        mail.send(msg)
+        flash("Thank you for your feedback! Your message has been sent.")
+    except Exception as e:
+        flash(f"An error occurred while sending your message: {str(e)}")
+        return redirect(url_for('feedback'))
+
+    return redirect(url_for('feedback'))
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
