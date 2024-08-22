@@ -13,6 +13,9 @@ from werkzeug.utils import secure_filename
 from docx import Document
 from markdown2 import markdown
 from flask_mail import Mail, Message
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 ### FUNCTIONS START ###
 def get_secret(secret_name):
@@ -153,6 +156,11 @@ app = Flask(__name__)
 
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
+# Flask-Login setup
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
 app.permanent_session_lifetime = timedelta(minutes=10)
 
 # Set maximum file size to 16MB
@@ -184,7 +192,33 @@ mail = Mail(app)
 def make_session_permanent():
     session.permanent = True
 
+class User(UserMixin):
+    def __init__(self, user_id, email, password):
+        self.id = user_id
+        self.email = email
+        self.password = password
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Query BigQuery to find the user by ID
+    query = f"""
+        SELECT id, email, password
+        FROM `{project_id}.{dataset_id}.users`
+        WHERE id = @user_id
+    """
+    query_job = bigquery_client.query(query, job_config=bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("user_id", "STRING", user_id)]
+    ))
+    result = query_job.result()
+
+    if not result:
+        return None
+
+    row = list(result)[0]
+    return User(user_id=row.id, email=row.email, password=row.password)
+
 @app.route('/')
+@login_required
 def index():
     categories = ['Sales',
                 'Marketing',
@@ -215,6 +249,7 @@ def index():
     return render_template('index.html', categories=categories)
 
 @app.route('/results')
+@login_required
 def results():
     # Retrieve the conversation from the session
     conversation = session.get('conversation', [])
@@ -222,6 +257,7 @@ def results():
     return render_template('results.html', conversation=conversation)
 
 @app.route('/clear-conversation')
+@login_required
 def clear_conversation():
     # Clear the session data to start a new conversation
     session.pop('conversation', None)
@@ -230,6 +266,7 @@ def clear_conversation():
 ### ROUTES FOR PROMPTS ###
 
 @app.route('/prompt-menu')
+@login_required
 def prompt_menu():
     category = request.args.get('category')
 
@@ -270,6 +307,7 @@ def prompt_menu():
     return render_template('prompt_menu.html', category=category, prompts_by_subcategory=prompts_by_subcategory)
 
 @app.route('/manage-prompts')
+@login_required
 def manage_prompts():
     selected_category = request.args.get('category')
     selected_subcategory = request.args.get('subcategory')
@@ -296,22 +334,62 @@ def manage_prompts():
         ))
         subcategories = [row.subcategory for row in subcategory_job.result()]
     else:
-        subcategories = []
+        # Fetch all distinct subcategories if no category is selected
+        subcategory_query = f"""
+            SELECT DISTINCT subcategory
+            FROM `{project_id}.{dataset_id}.{table_id}`
+            ORDER BY subcategory
+        """
+        subcategory_job = bigquery_client.query(subcategory_query)
+        subcategories = [row.subcategory for row in subcategory_job.result()]
 
-    # Fetch prompts, optionally filtering by the selected category and subcategory
-    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=selected_category, subcategory=selected_subcategory)
+    # Construct the WHERE clause dynamically based on user selection
+    where_clauses = []
+    query_params = []
+
+    if selected_category:
+        where_clauses.append("category = @category")
+        query_params.append(bigquery.ScalarQueryParameter("category", "STRING", selected_category))
+
+    if selected_subcategory:
+        where_clauses.append("subcategory = @subcategory")
+        query_params.append(bigquery.ScalarQueryParameter("subcategory", "STRING", selected_subcategory))
+
+    # Construct the final query
+    if where_clauses:
+        where_clause = " WHERE " + " AND ".join(where_clauses)
+    else:
+        where_clause = ""
+
+    final_query = f"""
+        SELECT id, prompt, category, subcategory, button_name
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        {where_clause}
+        ORDER BY category, subcategory
+    """
+
+    query_job = bigquery_client.query(final_query, job_config=bigquery.QueryJobConfig(query_parameters=query_params))
+    prompts = query_job.result()
 
     # Organize prompts by subcategory
     prompts_by_subcategory = {}
     for prompt in prompts:
-        if prompt['subcategory'] not in prompts_by_subcategory:
-            prompts_by_subcategory[prompt['subcategory']] = []
-        prompts_by_subcategory[prompt['subcategory']].append(prompt)
+        if prompt.subcategory not in prompts_by_subcategory:
+            prompts_by_subcategory[prompt.subcategory] = []
+        prompts_by_subcategory[prompt.subcategory].append({
+            'id': prompt.id,
+            'prompt': prompt.prompt,
+            'category': prompt.category,
+            'subcategory': prompt.subcategory,
+            'button_name': prompt.button_name
+        })
 
     return render_template('manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
 
 
+
 @app.route('/submit-prompt', methods=['POST'])
+@login_required
 def submit_prompt():
     prompt = request.form['prompt']
     category = request.form['category']
@@ -365,6 +443,7 @@ def submit_prompt():
     return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
+@login_required
 def view_prompt():
     if request.method == 'POST':
         # Get the prompt and previous conversation from the form or session
@@ -399,6 +478,7 @@ def view_prompt():
         return render_template('results.html', conversation=[], prompt='', response='')
 
 @app.route('/assign-button-name', methods=['POST'])
+@login_required
 def assign_button_name():
     prompt_id = request.form['prompt_id']
     button_name = request.form['button_name']
@@ -438,6 +518,7 @@ def assign_button_name():
     return redirect('/delete-prompts')
 
 @app.route('/delete-prompt', methods=['POST'])
+@login_required
 def delete_prompt():
     prompt_id = request.form['prompt_id']
 
@@ -487,6 +568,7 @@ def delete_prompt():
     return redirect('/manage-prompts')
 
 @app.route('/edit-prompt', methods=['POST'])
+@login_required
 def edit_prompt():
     prompt_id = request.form['prompt_id']
     new_prompt_text = request.form['new_prompt_text']
@@ -538,6 +620,7 @@ def edit_prompt():
 ### ROUTES FOR CATEGORIES ###
 
 @app.route('/prompt-categories')
+@login_required
 def prompt_categories():
     # Dictionary of categories with their corresponding emojis
     categories_with_emojis = {
@@ -583,6 +666,7 @@ def prompt_categories():
     return render_template('prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
 
 @app.route('/manage-categories')
+@login_required
 def manage_categories():
     # Fetch distinct categories and their subcategories
     query = f"""
@@ -603,6 +687,7 @@ def manage_categories():
     return render_template('manage_categories.html', categories=categories)
 
 @app.route('/manage-subcategories')
+@login_required
 def manage_subcategories():
     category = request.args.get('category')
 
@@ -627,6 +712,7 @@ def manage_subcategories():
     return render_template('manage_subcategories.html', category=category, subcategories=subcategories)
 
 @app.route('/add-categories', methods=['POST'])
+@login_required
 def add_categories():
     categories_input = request.form['categories']  # Expecting a single input string
 
@@ -691,6 +777,7 @@ def add_categories():
     return redirect('/manage-categories')
 
 @app.route('/add-subcategories', methods=['POST'])
+@login_required
 def add_subcategories():
     category = request.form['category']
     subcategories_input = request.form['subcategories']  # Expecting a single input string
@@ -757,6 +844,7 @@ def add_subcategories():
     return redirect('/manage-categories')
 
 @app.route('/edit-category', methods=['POST'])
+@login_required
 def edit_category():
     old_category = request.form['old_category']
     new_category_name = request.form['new_category_name']
@@ -799,6 +887,7 @@ def edit_category():
     return redirect('/manage-categories')
 
 @app.route('/edit-subcategory', methods=['POST'])
+@login_required
 def edit_subcategory():
     category = request.form['category']
     old_subcategory = request.form['old_subcategory']
@@ -847,6 +936,7 @@ def edit_subcategory():
     return redirect('/manage-categories')
 
 @app.route('/delete-category', methods=['POST'])
+@login_required
 def delete_category():
     category = request.form['category']
 
@@ -887,6 +977,7 @@ def delete_category():
     return redirect('/manage-categories')
 
 @app.route('/delete-subcategory', methods=['POST'])
+@login_required
 def delete_subcategory():
     category = request.form['category']
     subcategory = request.form['subcategory']
@@ -933,6 +1024,7 @@ def delete_subcategory():
 ### ROUTES FOR INSTRUCTIONS ###
 
 @app.route('/update-instructions', methods=['POST'])
+@login_required
 def update_instructions():
     category = request.form['category']
     new_instructions = request.form['instructions']
@@ -978,10 +1070,12 @@ def update_instructions():
 ### ROUTES FOR FEEDBACK/MAIL ###
 
 @app.route('/feedback')
+@login_required
 def feedback():
     return render_template('feedback.html')
 
 @app.route('/send-feedback', methods=['POST'])
+@login_required
 def send_feedback():
     # Retrieve form data
     message_content = request.form.get('message')
@@ -1003,6 +1097,104 @@ def send_feedback():
         return redirect(url_for('feedback'))
 
     return redirect(url_for('feedback'))
+
+### ROUTES FOR LOGIN ###
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+
+    approved_emails = ['renaudbeaupre1991@gmail.com',
+                    'info@lessocialites.com',
+                    'tay@@lessocialites.com',
+                    'claudine@lessocialites.com',
+                    'jenny@lessocialites.com',
+                    'ruth@lessocialites.com',
+                    'imen@lessocialites.com',
+                    'ari@lessocialites.com',
+                    'jenius.feedback@gmail.com']
+
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        # Check if the email is pre-approved
+        if email not in approved_emails:
+            flash("This email is not authorized to register.")
+            return redirect(url_for('register'))
+
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+
+        # Check if the user already exists
+        check_query = f"""
+            SELECT id
+            FROM `{project_id}.{dataset_id}.users`
+            WHERE email = @email
+            LIMIT 1
+        """
+        query_job = bigquery_client.query(check_query, job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("email", "STRING", email)]
+        ))
+        result = query_job.result()
+
+        if list(result):
+            flash("Email already exists.")
+            return redirect(url_for('register'))
+
+        # Insert new user into BigQuery
+        user_id = str(uuid.uuid4())
+        rows_to_insert = [
+            {
+                "id": user_id,
+                "email": email,
+                "password": hashed_password,
+                "timestamp": datetime.now().isoformat()
+            }
+        ]
+        bigquery_client.insert_rows_json(f"{dataset_id}.users", rows_to_insert)
+        flash("Registration successful! Please log in.")
+        return redirect(url_for('login'))
+
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        # Query BigQuery for the user
+        query = f"""
+            SELECT id, email, password
+            FROM `{project_id}.{dataset_id}.users`
+            WHERE email = @email
+            LIMIT 1
+        """
+        query_job = bigquery_client.query(query, job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("email", "STRING", email)]
+        ))
+        result = query_job.result()
+
+        if not result:
+            flash("Email or password is incorrect.")
+            return redirect(url_for('login'))
+
+        row = list(result)[0]
+        user = User(user_id=row.id, email=row.email, password=row.password)
+
+        if check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for('index'))
+        else:
+            flash("Email or password is incorrect.")
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
