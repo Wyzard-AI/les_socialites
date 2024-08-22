@@ -72,12 +72,20 @@
         }
 
         .flash-message {
-            background-color: #ff4444;
-            color: #ffffff;
             padding: 10px;
             border-radius: 4px;
             margin-bottom: 20px;
             text-align: center;
+        }
+
+        .flash-message.success {
+            background-color: #39ff14; /* Neon green for success */
+            color: #121212;
+        }
+
+        .flash-message.error {
+            background-color: #ff4444; /* Red for errors */
+            color: #ffffff;
         }
 
         .register-link {
@@ -96,13 +104,13 @@
     <div class="container">
         <h1>Login to Jenius</h1>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-message">
-                    {% for message in messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">
                         <p>{{ message }}</p>
-                    {% endfor %}
-                </div>
+                    </div>
+                {% endfor %}
             {% endif %}
         {% endwith %}
 

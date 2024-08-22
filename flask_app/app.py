@@ -1102,26 +1102,9 @@ def send_feedback():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-
-    approved_emails = ['renaudbeaupre1991@gmail.com',
-                    'info@lessocialites.com',
-                    'tay@@lessocialites.com',
-                    'claudine@lessocialites.com',
-                    'jenny@lessocialites.com',
-                    'ruth@lessocialites.com',
-                    'imen@lessocialites.com',
-                    'ari@lessocialites.com',
-                    'jenius.feedback@gmail.com']
-
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-
-        # Check if the email is pre-approved
-        if email not in approved_emails:
-            flash("This email is not authorized to register.")
-            return redirect(url_for('register'))
-
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
 
         # Check if the user already exists
@@ -1151,7 +1134,9 @@ def register():
             }
         ]
         bigquery_client.insert_rows_json(f"{dataset_id}.users", rows_to_insert)
-        flash("Registration successful! Please log in.")
+
+        # Flash success message with a 'success' category
+        flash("Registration successful! Please log in.", "success")
         return redirect(url_for('login'))
 
     return render_template('register.html')
@@ -1183,7 +1168,7 @@ def login():
 
         if check_password_hash(user.password, password):
             login_user(user)
-            return redirect(url_for('index'))
+            return redirect(url_for('results'))
         else:
             flash("Email or password is incorrect.")
             return redirect(url_for('login'))
