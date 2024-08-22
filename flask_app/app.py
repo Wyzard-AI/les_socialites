@@ -32,12 +32,14 @@ def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=None,
 
     query_params = []
     if category:
-        query += " AND category = @category"
+        query += " WHERE category = @category"
         query_params.append(bigquery.ScalarQueryParameter("category", "STRING", category))
 
     if subcategory:
         query += " AND subcategory = @subcategory"
         query_params.append(bigquery.ScalarQueryParameter("subcategory", "STRING", subcategory))
+
+    query += "ORDER BY category, subcategory"
 
     if query_params:
         query_config = bigquery.QueryJobConfig(query_parameters=query_params)
@@ -270,6 +272,7 @@ def prompt_menu():
 @app.route('/manage-prompts')
 def manage_prompts():
     selected_category = request.args.get('category')
+    selected_subcategory = request.args.get('subcategory')
 
     # Fetch categories for the dropdown
     query = f"""
@@ -280,13 +283,33 @@ def manage_prompts():
     query_job = bigquery_client.query(query)
     categories = [row.category for row in query_job.result()]
 
-    # Fetch prompts, optionally filtering by the selected category
+    # Fetch subcategories for the dropdown based on the selected category
     if selected_category:
-        prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=selected_category)
+        subcategory_query = f"""
+            SELECT DISTINCT subcategory
+            FROM `{project_id}.{dataset_id}.{table_id}`
+            WHERE category = @category
+            ORDER BY subcategory
+        """
+        subcategory_job = bigquery_client.query(subcategory_query, job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("category", "STRING", selected_category)]
+        ))
+        subcategories = [row.subcategory for row in subcategory_job.result()]
     else:
-        prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id)
+        subcategories = []
 
-    return render_template('manage_prompts.html', prompts=prompts, categories=categories, selected_category=selected_category)
+    # Fetch prompts, optionally filtering by the selected category and subcategory
+    prompts = fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=selected_category, subcategory=selected_subcategory)
+
+    # Organize prompts by subcategory
+    prompts_by_subcategory = {}
+    for prompt in prompts:
+        if prompt['subcategory'] not in prompts_by_subcategory:
+            prompts_by_subcategory[prompt['subcategory']] = []
+        prompts_by_subcategory[prompt['subcategory']].append(prompt)
+
+    return render_template('manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
+
 
 @app.route('/submit-prompt', methods=['POST'])
 def submit_prompt():
