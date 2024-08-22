@@ -135,11 +135,13 @@
                 </div>
                 <div class="prompts-container">
                     {% for prompt in prompts %}
-                        <input type="hidden" name="prompt" value="{{ prompt.prompt }}">
-                        <input type="hidden" name="category" value="{{ category }}">
-                        <button type="submit" class="prompt">
-                            {{ prompt.button_name if prompt.button_name else prompt.prompt }}
-                        </button>
+                        {% if prompt.prompt != "None" and prompt.button_name != "None" %}
+                            <input type="hidden" name="prompt" value="{{ prompt.prompt }}">
+                            <input type="hidden" name="category" value="{{ category }}">
+                            <button type="submit" class="prompt">
+                                {{ prompt.button_name if prompt.button_name else prompt.prompt }}
+                            </button>
+                        {% endif %}
                     {% endfor %}
                 </div>
             {% endfor %}

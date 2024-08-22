@@ -20,27 +20,39 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        .subcategory {
+            font-size: 18px;
+            color: #ffffff;
+            margin-bottom: 10px;
+            padding-top: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #8a2be2;
+        }
+
+        .prompts-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 30px;
+            align-items: center;
         }
 
         .card {
             background-color: #1e1e1e;
             border: none;
             color: #e0e0e0;
-            margin-bottom: 20px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             padding: 25px;
             text-align: center;
-            width: 30%;
+            width: calc(20% - 10px); /* Adjust based on the desired number of cards per row */
             box-sizing: border-box;
-            margin-right: 10px;
-        }
-
-        .card-title {
-            font-size: 18px;
-            margin-bottom: 20px;
         }
 
         .form-control {
@@ -53,10 +65,11 @@
             border-radius: 4px;
             box-sizing: border-box;
             font-size: 12.8px; /* 20% smaller input text size */
+            font-family: Arial, sans-serif; /* Set the font-family for input text */
         }
 
         .form-label {
-            font-size: 16px;
+            font-size: 18px; /* Increase font size for the label above "Edit Prompt" */
             margin-bottom: 10px;
             display: block;
         }
@@ -83,28 +96,6 @@
             background-color: #32cd32; /* Green complementary color */
         }
 
-        .btn-warning {
-            background-color: #FFC107;
-        }
-
-        .btn-danger {
-            background-color: #f44336;
-        }
-
-        .btn-info {
-            background-color: #17a2b8;
-        }
-
-        .btn:hover {
-            opacity: 0.8;
-        }
-
-        .d-flex {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-        }
-
         .btn-secondary {
             background-color: #8a2be2;
             width: 100%;
@@ -123,6 +114,27 @@
             background-color: #6a1db7;
         }
 
+        .btn:hover {
+            opacity: 0.8;
+        }
+
+        @media (max-width: 992px) {
+            .card {
+                width: calc(33.33% - 10px); /* Three cards per row on medium screens */
+            }
+        }
+
+        @media (max-width: 768px) {
+            .card {
+                width: calc(50% - 10px); /* Two cards per row on smaller screens */
+            }
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                width: calc(100% - 10px); /* One card per row on extra small screens */
+            }
+        }
     </style>
 </head>
 <body>
@@ -141,12 +153,24 @@
                         </option>
                     {% endfor %}
                 </select>
+
+                <!-- Dropdown for Selecting Subcategory -->
+                <label for="subcategory" class="form-label mt-3">Filter by Subcategory:</label>
+                <select class="form-control d-inline-block w-auto" id="subcategory" name="subcategory" onchange="this.form.submit()">
+                    <option value="">All Subcategories</option>
+                    {% for subcategory in subcategories %}
+                        <option value="{{ subcategory }}" {% if selected_subcategory == subcategory %}selected{% endif %}>
+                            {{ subcategory }}
+                        </option>
+                    {% endfor %}
+                </select>
             </form>
         </div>
 
-        <!-- Display Prompts -->
-        <div class="d-flex flex-wrap justify-content-center">
-            {% if prompts %}
+        <!-- Display Prompts Organized by Subcategory -->
+        {% for subcategory, prompts in prompts_by_subcategory.items() %}
+            <div class="subcategory">{{ subcategory }}</div>
+            <div class="prompts-container">
                 {% for prompt in prompts %}
                     <div class="card">
                         <h5 class="card-title">{{ prompt.button_name if prompt.button_name else prompt.prompt }}</h5>
@@ -175,10 +199,8 @@
                         </div>
                     </div>
                 {% endfor %}
-            {% else %}
-                <p class="text-center">No prompts available.</p>
-            {% endif %}
-        </div>
+            </div>
+        {% endfor %}
 
         <div class="text-center mt-4">
             <a href="/" class="btn-secondary">Back to Home</a>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Manager</title>
+    <title>Jenius</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -94,7 +94,7 @@
 </head>
 <body>
     <div class="container my-5">
-        <h1>Welcome to the Prompt Manager</h1>
+        <h1>Welcome to Jenius</h1>
         <div class="row justify-content-center">
             <div class="col-md-12">
                 <!-- Option to Select from Prompt Categories -->
@@ -103,6 +103,22 @@
                         <h5 class="card-title">📂 Browse Categories 📂</h5>
                         <p class="card-text">Browse and select from available prompt categories.</p>
                         <a href="/prompt-categories" class="btn btn-success">Go to Categories</a>
+                    </div>
+                </div>
+                <!-- Option to Manage Prompts -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">🛠️ Manage Prompts 🛠️</h5>
+                        <p class="card-text">Edit/delete prompts or assign button names.</p>
+                        <a href="/manage-prompts" class="btn btn-warning">Go to Manage Prompts</a>
+                    </div>
+                </div>
+                <!-- Option to Manage Categories -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">📊 Manage Categories 📊</h5>
+                        <p class="card-text">Edit/delete categories.</p>
+                        <a href="/manage-categories" class="btn btn-danger">Go to Manage Categories</a>
                     </div>
                 </div>
                 <!-- Option to Submit a New Prompt -->
@@ -155,22 +171,6 @@
                             </div>
                             <button type="submit" class="btn btn-primary">Update Instructions</button>
                         </form>
-                    </div>
-                </div>
-                <!-- Option to Manage Prompts -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">🛠️ Manage Prompts 🛠️</h5>
-                        <p class="card-text">Edit/delete prompts or assign button names.</p>
-                        <a href="/manage-prompts" class="btn btn-warning">Go to Manage Prompts</a>
-                    </div>
-                </div>
-                <!-- Option to Manage Categories -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">📊 Manage Categories 📊</h5>
-                        <p class="card-text">Edit/delete categories.</p>
-                        <a href="/manage-categories" class="btn btn-danger">Go to Manage Categories</a>
                     </div>
                 </div>
             </div>
