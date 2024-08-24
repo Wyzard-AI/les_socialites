@@ -87,39 +87,63 @@ def sanitize_text(text, proper=False):
 
     return text
 
-def get_openai_assistant_response(conversation, openai_client, category=None):
-    # Check if the conversation is just starting
-    if category:
+def get_openai_assistant_response(project_id, conversation, openai_client, category=None):
+    # Check if the conversation is just starting and hasn't added system instructions yet
+    if 'system' not in [message['role'] for message in conversation]:
         # Default instructions
-        default_instructions = """
-            You are a manager at an influencer marketing company that does business in Canada and the United States.
-        """
+        default_instructions = "You are a manager at an influencer marketing company that does business in Canada and the United States."
 
-        # Fetch instructions from BigQuery based on the category
-        query = f"""
-            SELECT instructions
-            FROM `{project_id}.{dataset_id}.{table_id}`
-            WHERE category = @category
-            LIMIT 1
+        # Initialize the instructions variable
+        instructions = ""
+
+        # Fetch knowledge base instructions from BigQuery based on the project_id
+        knowledge_query = f"""
+            SELECT STRING_AGG(knowledge_instructions, ' ') AS instructions
+            FROM `{project_id}.prompt_manager.knowledge_base`
+            WHERE business_id = @business_id
         """
-        query_config = bigquery.QueryJobConfig(
+        knowledge_query_config = bigquery.QueryJobConfig(
             query_parameters=[
-                bigquery.ScalarQueryParameter("category", "STRING", category)
+                bigquery.ScalarQueryParameter("business_id", "STRING", sanitize_project(project_id))
             ]
         )
-        query_job = bigquery_client.query(query, job_config=query_config)
-        result = query_job.result()
+        knowledge_query_job = bigquery_client.query(knowledge_query, job_config=knowledge_query_config)
+        knowledge_result = knowledge_query_job.result()
 
-        instructions = None
-        for row in result:
-            instructions = row.instructions
+        for row in knowledge_result:
+            if row.instructions:
+                instructions += "Knowledge Base Instruction: " + row.instructions + " "
 
+        # Fetch category-specific instructions from BigQuery
+        if category:
+            category_query = f"""
+                SELECT instructions
+                FROM `{project_id}.{dataset_id}.{table_id}`
+                WHERE category = @category
+                LIMIT 1
+            """
+            category_query_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("category", "STRING", category)
+                ]
+            )
+            category_query_job = bigquery_client.query(category_query, job_config=category_query_config)
+            category_result = category_query_job.result()
+
+            for row in category_result:
+                if row.instructions:
+                    instructions += "Category-Specific Instruction: " + row.instructions + " "
+
+        # If no instructions were found, use the default instructions
         if not instructions:
-            instructions = default_instructions
+            instructions = "Default Instruction: " + default_instructions
+        else:
+            # Prepend context to the instructions
+            instructions = f"Here are the instructions: {instructions}"
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
-        conversation.append({"role": "system", "content": sanitized_instructions})
+        conversation.insert(0, {"role": "system", "content": sanitized_instructions})
 
     # Call the OpenAI API with the entire conversation
     try:
@@ -127,10 +151,11 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
             model="gpt-4o",
             messages=conversation
         )
-        # disclaimer_text = "\n\nAnswers from ChatGPT are not always 100% accurate so it's important to verify information crucial to your business."
-        return response.choices[0].message.content # + disclaimer_text
+        return response.choices[0].message.content
     except Exception as e:
         return f"An error occurred: {e}"
+
+
 
 
 def extract_text_from_file(file):
@@ -149,6 +174,18 @@ def extract_text_from_file(file):
         for paragraph in doc.paragraphs:
             text += paragraph.text
     return text
+
+def sanitize_project(project_name):
+    # Remove the string "chat-gpt"
+    sanitized_name = project_name.replace("chat-gpt", "")
+
+    # Remove any numbers followed by a hyphen
+    sanitized_name = re.sub(r'-\d+', '', sanitized_name)
+
+    # Remove any trailing hyphens or spaces that might be left after removal
+    sanitized_name = sanitized_name.rstrip('-').strip()
+
+    return sanitized_name
 
 
 ### APP START ###
@@ -182,9 +219,9 @@ openai_client = OpenAI(api_key=openai_api_key)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'jenius.feedback@gmail.com'
-app.config['MAIL_PASSWORD'] = get_secret('jenius-ai-app-email-password')
-app.config['MAIL_DEFAULT_SENDER'] = 'jenius.feedback@gmail.com'
+app.config['MAIL_USERNAME'] = 'wyzard.feedback@gmail.com'
+app.config['MAIL_PASSWORD'] = get_secret('wyzard-email-app-password')
+app.config['MAIL_DEFAULT_SENDER'] = 'wyzard.feedback@gmail.com'
 
 mail = Mail(app)
 
@@ -427,10 +464,11 @@ def submit_prompt():
         return f"An error occurred: {e}", 500
 
     # Prepare the conversation without adding instructions here
-    conversation = [{"role": "user", "content": prompt}]
+    modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
+    conversation = [{"role": "user", "content": modified_prompt}]
 
     # Call the get_openai_assistant_response function to handle instructions
-    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
+    response = get_openai_assistant_response(project_id, conversation, openai_client, category=sanitized_category)
     formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
@@ -457,10 +495,11 @@ def view_prompt():
             prompt += "\n\n" + file_text
 
         # Append the user's prompt (including file content if applicable) to the conversation
-        conversation.append({"role": "user", "content": prompt})
+        modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
+        conversation.append({"role": "user", "content": modified_prompt})
 
         # Get the response from OpenAI, passing the category for the first interaction
-        response = get_openai_assistant_response(conversation, openai_client, category=category)
+        response = get_openai_assistant_response(project_id, conversation, openai_client, category=category)
         formatted_response = markdown(response)
 
         # Append the assistant's response to the conversation
@@ -1102,9 +1141,27 @@ def send_feedback():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # Define a list of whitelisted email addresses
+    whitelisted_emails = [
+        "renaudbeaupre1991@gmail.com",
+        "info@lessocialites.com",
+        "claudine@lessocialites.com",
+        "tay@lessocialites.com",
+        "jenny@lessocialites.com",
+        "ruth@lessocialites.com",
+        "imen@lessocialites.com",
+        "wyzard.feedback@gmail.com"
+    ]
+
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+
+        # Check if the email is in the whitelist
+        if email not in whitelisted_emails:
+            flash("Your email is not authorized to register.", "error")
+            return redirect(url_for('register'))
+
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
 
         # Check if the user already exists
@@ -1120,7 +1177,7 @@ def register():
         result = query_job.result()
 
         if list(result):
-            flash("Email already exists.")
+            flash("Email already exists.", "error")
             return redirect(url_for('register'))
 
         # Insert new user into BigQuery
@@ -1140,6 +1197,7 @@ def register():
         return redirect(url_for('login'))
 
     return render_template('register.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1180,6 +1238,72 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+
+### ROUTES FOR KNOWLEDGE BASE ###
+
+@app.route('/knowledge-base')
+def knowledge_base():
+    # Fetch knowledge instructions from BigQuery
+    query = f"""
+        SELECT id, knowledge_instructions
+        FROM `{project_id}.{dataset_id}.knowledge_base`
+        WHERE business_id = @business_id
+        ORDER BY timestamp DESC
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("business_id", "STRING", sanitize_project(project_id))]
+    )
+    query_job = bigquery_client.query(query, job_config=query_config)
+    knowledge_instructions = [
+        {"id": row.id, "knowledge_instructions": row.knowledge_instructions}
+        for row in query_job.result()
+    ]
+
+    return render_template('knowledge_base.html', knowledge_instructions=knowledge_instructions)
+
+@app.route('/submit-knowledge', methods=['POST'])
+def submit_knowledge():
+    knowledge_instructions = request.form['knowledge_instructions']
+
+    # Insert into BigQuery
+    rows_to_insert = [
+        {
+            "id": str(uuid.uuid4()),
+            "business_id": sanitize_project(project_id),
+            "knowledge_instructions": sanitize_text(knowledge_instructions),
+            "timestamp": datetime.now().isoformat()
+        }
+    ]
+    bigquery_client.insert_rows_json(f"{dataset_id}.knowledge_base", rows_to_insert)
+
+    return redirect(url_for('knowledge_base'))
+
+@app.route('/delete-knowledge', methods=['POST'])
+def delete_knowledge():
+    instruction_id = request.form['id']
+
+    # Step 1: Create a new table excluding the deleted instruction
+    temp_table_ref = f"{project_id}.{dataset_id}.temp_knowledge_base"
+    original_table_ref = f"{project_id}.{dataset_id}.knowledge_base"
+
+    query = f"""
+        CREATE OR REPLACE TABLE {temp_table_ref} AS
+        SELECT * EXCEPT (id)
+        FROM {original_table_ref}
+        WHERE id != @id
+    """
+    query_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("id", "STRING", instruction_id)]
+    )
+    bigquery_client.query(query, job_config=query_config).result()
+
+    # Step 2: Replace the original table with the updated table
+    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
+    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO knowledge_base").result()
+
+    return redirect(url_for('knowledge_base'))
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
