@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatGPT Conversation</title>
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.svg') }}" type="image/x-icon">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,6 +16,12 @@
             justify-content: center; /* Center the content horizontally */
             flex-direction: column; /* Stack elements vertically */
             align-items: center; /* Center elements horizontally */
+        }
+
+        .logo {
+            display: block;
+            width: 250px; /* Made the logo bigger to match index.html */
+            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
         }
 
         h1 {
@@ -164,6 +171,16 @@
             margin-top: 20px;
         }
 
+        /* Flash message styling */
+        .flash-message {
+            background-color: #ff4444; /* Red background for error messages */
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
         @media (max-width: 768px) {
             .bottom-buttons {
                 flex-direction: column;
@@ -181,7 +198,21 @@
 </head>
 <body>
     <div class="container">
+        <!-- Wyzard Logo -->
+        <img src="{{ url_for('static', filename='wyzard_logo.svg') }}" alt="Wyzard Logo" class="logo">
+
         <h1>ChatGPT Conversation</h1>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-message">
+                    {% for message in messages %}
+                        <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
         <!-- Note about accuracy -->
         <div class="note">
@@ -201,6 +232,9 @@
         </div>
 
         <form action="/view-prompt" method="POST" enctype="multipart/form-data">
+            <!-- Hidden input to capture business_type -->
+            <input type="hidden" name="business_type" value="{{ business_type }}">
+
             <div>
                 <label for="prompt">Your Message:</label>
                 <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>
@@ -215,6 +249,9 @@
         <a href="/clear-conversation" class="secondary-button">Clear Conversation History</a>
         <a href="/prompt-menu" class="secondary-button">Pick a New Task</a>
         <a href="/prompt-categories" class="secondary-button">Pick a New AI Assistant</a>
+
+        <!-- New Home Page Button -->
+        <a href="/" class="secondary-button">Home Page</a>
 
         <!-- Bottom Buttons Section -->
         <div class="bottom-buttons">

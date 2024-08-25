@@ -15,7 +15,7 @@ from markdown2 import markdown
 from flask_mail import Mail, Message
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from functools import wraps
 
 ### FUNCTIONS START ###
 def get_secret(secret_name):
@@ -87,7 +87,7 @@ def sanitize_text(text, proper=False):
 
     return text
 
-def get_openai_assistant_response(project_id, conversation, openai_client, category=None):
+def get_openai_assistant_response(conversation, openai_client, category=None, business_type=None):
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
         # Default instructions
@@ -96,23 +96,24 @@ def get_openai_assistant_response(project_id, conversation, openai_client, categ
         # Initialize the instructions variable
         instructions = ""
 
-        # Fetch knowledge base instructions from BigQuery based on the project_id
-        knowledge_query = f"""
-            SELECT STRING_AGG(knowledge_instructions, ' ') AS instructions
-            FROM `{project_id}.prompt_manager.knowledge_base`
-            WHERE business_id = @business_id
-        """
-        knowledge_query_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("business_id", "STRING", sanitize_project(project_id))
-            ]
-        )
-        knowledge_query_job = bigquery_client.query(knowledge_query, job_config=knowledge_query_config)
-        knowledge_result = knowledge_query_job.result()
+        if business_type:
+            # Fetch knowledge base instructions from BigQuery based on the project_id
+            knowledge_query = f"""
+                SELECT STRING_AGG(knowledge_instructions, ' ') AS instructions
+                FROM `{project_id}.{dataset_id}.knowledge_base`
+                WHERE business_type = @business_type
+            """
+            knowledge_query_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("business_id", "STRING", business_type)
+                ]
+            )
+            knowledge_query_job = bigquery_client.query(knowledge_query, job_config=knowledge_query_config)
+            knowledge_result = knowledge_query_job.result()
 
-        for row in knowledge_result:
-            if row.instructions:
-                instructions += "Knowledge Base Instruction: " + row.instructions + " "
+            for row in knowledge_result:
+                if row.instructions:
+                    instructions += "Knowledge Base Instruction: " + row.instructions + " "
 
         # Fetch category-specific instructions from BigQuery
         if category:
@@ -155,9 +156,6 @@ def get_openai_assistant_response(project_id, conversation, openai_client, categ
     except Exception as e:
         return f"An error occurred: {e}"
 
-
-
-
 def extract_text_from_file(file):
     filename = secure_filename(file.filename)
     file_extension = os.path.splitext(filename)[1].lower()
@@ -187,6 +185,50 @@ def sanitize_project(project_name):
 
     return sanitized_name
 
+def get_categories_for_business_type(business_type):
+    # Define a dictionary mapping business types to categories
+    business_type_to_categories = {
+        "Agriculture": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Automotive": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Banking and Finance": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Construction": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Creative Arts": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Energy": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Entertainment": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Environmental Services": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Fashion": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Food and Beverage": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Insurance": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Legal Services": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Logistics and Supply Chain": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Manufacturing": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Marketing and Advertising": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Media and Publishing": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Mining": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Nonprofit": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Real Estate": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Retail": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Technology": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Telecommunications": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Tourism": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Transportation": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Utilities": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Wellness and Fitness": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
+        "Les Socialites": ["Accounting", "Administrative Assistant", "Business Developer", "Content Creation", "Customer Service", "Data Analyst", "Design", "Event Planning", "HR", "Humanizer", "Influencer", "Influencer Marketing", "Legal Advisor", "Marketing", "Multi-Channel Campaign", "Plagiarism Checker", "PR", "Project Manager", "Sales", "SEO", "Social Media", "Spellcheck/Translation", "Personal Assistant", "Web", "eCommerce"]
+    }
+
+    # Return the categories for the selected business type
+    return business_type_to_categories.get(business_type, [])
+
+def restricted_access(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_email = session.get('user_email')
+        if user_email not in ADMIN_EMAILS:
+            flash('Access denied. You do not have permission to access this page.')
+            return redirect(url_for('results'))  # Redirect to a safe page if access is denied
+        return f(*args, **kwargs)
+    return decorated_function
 
 ### APP START ###
 app = Flask(__name__)
@@ -214,6 +256,8 @@ bigquery_client = bigquery.Client(credentials=credentials, project=service_accou
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
+
+ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
 
 # Flask-Mail configuration
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -256,6 +300,7 @@ def load_user(user_id):
 
 @app.route('/')
 @login_required
+@restricted_access  # This decorator restricts access based on email
 def index():
     categories = ['Sales',
                 'Marketing',
@@ -291,7 +336,11 @@ def results():
     # Retrieve the conversation from the session
     conversation = session.get('conversation', [])
 
-    return render_template('results.html', conversation=conversation)
+    # Retrieve the selected business type from the session
+    business_type = session.get('business_type', 'No business type selected')
+
+    # Pass both the conversation and the business type to the results.html template
+    return render_template('results.html', conversation=conversation, business_type=business_type)
 
 @app.route('/clear-conversation')
 @login_required
@@ -307,7 +356,13 @@ def clear_conversation():
 def prompt_menu():
     category = request.args.get('category')
 
-    if category:
+    # Retrieve the selected business type from the session
+    business_type = session.get('business_type', 'No business type selected')
+
+    # Get the categories for the selected business type
+    categories = get_categories_for_business_type(business_type)
+
+    if category and category in categories:
         # Fetch distinct subcategories and their associated prompts based on the selected category
         query = f"""
             SELECT subcategory, prompt, button_name
@@ -321,13 +376,18 @@ def prompt_menu():
             ]
         )
     else:
-        # Fetch all prompts when no category is specified
+        # Fetch all prompts when no category is specified or category is not in the business type's categories
         query = f"""
             SELECT category, subcategory, prompt, button_name
             FROM `{project_id}.{dataset_id}.{table_id}`
+            WHERE category IN UNNEST(@categories)
             ORDER BY category, subcategory, prompt
         """
-        query_config = None  # No query parameters needed for this query
+        query_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("categories", "STRING", categories)
+            ]
+        )
 
     query_job = bigquery_client.query(query, job_config=query_config)
 
@@ -342,6 +402,7 @@ def prompt_menu():
         })
 
     return render_template('prompt_menu.html', category=category, prompts_by_subcategory=prompts_by_subcategory)
+
 
 @app.route('/manage-prompts')
 @login_required
@@ -468,7 +529,7 @@ def submit_prompt():
     conversation = [{"role": "user", "content": modified_prompt}]
 
     # Call the get_openai_assistant_response function to handle instructions
-    response = get_openai_assistant_response(project_id, conversation, openai_client, category=sanitized_category)
+    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category, business_type=None)
     formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
@@ -484,10 +545,13 @@ def submit_prompt():
 @login_required
 def view_prompt():
     if request.method == 'POST':
-        # Get the prompt and previous conversation from the form or session
+        # Get the prompt, category, and business type from the form
         prompt = request.form['prompt']
-        conversation = session.get('conversation', [])
         category = request.form.get('category')  # Assuming category is provided
+        business_type = request.form.get('business_type')  # Capture business type
+
+        # Get the previous conversation from the session
+        conversation = session.get('conversation', [])
 
         file = request.files.get('file')
         if file and file.filename != '':
@@ -498,8 +562,8 @@ def view_prompt():
         modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
         conversation.append({"role": "user", "content": modified_prompt})
 
-        # Get the response from OpenAI, passing the category for the first interaction
-        response = get_openai_assistant_response(project_id, conversation, openai_client, category=category)
+        # Get the response from OpenAI, passing the category and business_type
+        response = get_openai_assistant_response(conversation, openai_client, category=category, business_type=business_type)
         formatted_response = markdown(response)
 
         # Append the assistant's response to the conversation
@@ -690,17 +754,17 @@ def prompt_categories():
         "Influencer": "🤩"
     }
 
-    # Fetch categories sorted by usage count
-    query = f"""
-        SELECT DISTINCT category
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        ORDER BY category
-    """
-    query_job = bigquery_client.query(query)
-    categories = [row.category for row in query_job.result()]
+    business_type = session.get('business_type', 'No business type selected')
 
-    # Build a new dictionary with categories and their emojis
-    categories_with_emojis_filtered = {category: categories_with_emojis.get(category, '') for category in categories}
+    # Get the categories for the selected business type
+    available_categories = get_categories_for_business_type(business_type)
+
+    # Filter the categories with emojis based on the available categories
+    categories_with_emojis_filtered = {
+        category: categories_with_emojis.get(category, '')
+        for category in available_categories
+        if category in categories_with_emojis
+    }
 
     return render_template('prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
 
@@ -1226,7 +1290,8 @@ def login():
 
         if check_password_hash(user.password, password):
             login_user(user)
-            return redirect(url_for('results'))
+            session['user_email'] = user.email  # Store the user's email in the session
+            return redirect(url_for('business_type'))
         else:
             flash("Email or password is incorrect.")
             return redirect(url_for('login'))
@@ -1242,44 +1307,55 @@ def logout():
 
 ### ROUTES FOR KNOWLEDGE BASE ###
 
-@app.route('/knowledge-base')
-def knowledge_base():
-    # Fetch knowledge instructions from BigQuery
+@app.route('/manage-knowledge-base')
+@login_required
+def manage_knowledge_base():
+    # Retrieve selected business type from query parameters
+    business_type = request.args.get('business_type', '')
+
+    # Fetch knowledge instructions from BigQuery filtered by business type
     query = f"""
-        SELECT id, knowledge_instructions
+        SELECT id, business_type, knowledge_instructions
         FROM `{project_id}.{dataset_id}.knowledge_base`
-        WHERE business_id = @business_id
+        WHERE business_type = @business_type
         ORDER BY timestamp DESC
     """
     query_config = bigquery.QueryJobConfig(
-        query_parameters=[bigquery.ScalarQueryParameter("business_id", "STRING", sanitize_project(project_id))]
+        query_parameters=[bigquery.ScalarQueryParameter("business_type", "STRING", business_type)]
     )
     query_job = bigquery_client.query(query, job_config=query_config)
     knowledge_instructions = [
-        {"id": row.id, "knowledge_instructions": row.knowledge_instructions}
+        {"id": row.id, "business_type": row.business_type, "knowledge_instructions": row.knowledge_instructions}
         for row in query_job.result()
     ]
 
-    return render_template('knowledge_base.html', knowledge_instructions=knowledge_instructions)
+    # Fetch available business types for the dropdown
+    business_types = ["Agriculture", "Automotive", "Banking and Finance", "Construction", "Creative Arts", "Energy", "Entertainment", "Environmental Services", "Fashion", "Food and Beverage", "Insurance", "Legal Services", "Logistics and Supply Chain", "Manufacturing", "Marketing and Advertising", "Media and Publishing", "Mining", "Nonprofit", "Real Estate", "Retail", "Technology", "Telecommunications", "Tourism", "Transportation", "Utilities", "Wellness and Fitness", "Les Socialites"]
+
+    return render_template('manage_knowledge_base.html', knowledge_instructions=knowledge_instructions, business_types=business_types)
+
 
 @app.route('/submit-knowledge', methods=['POST'])
+@login_required
 def submit_knowledge():
     knowledge_instructions = request.form['knowledge_instructions']
+    business_type = request.form['business_type']
 
     # Insert into BigQuery
     rows_to_insert = [
         {
             "id": str(uuid.uuid4()),
-            "business_id": sanitize_project(project_id),
+            "business_type": business_type,
             "knowledge_instructions": sanitize_text(knowledge_instructions),
             "timestamp": datetime.now().isoformat()
         }
     ]
     bigquery_client.insert_rows_json(f"{dataset_id}.knowledge_base", rows_to_insert)
 
-    return redirect(url_for('knowledge_base'))
+    return redirect(url_for('manage_knowledge_base', business_type=business_type))
 
 @app.route('/delete-knowledge', methods=['POST'])
+@login_required
 def delete_knowledge():
     instruction_id = request.form['id']
 
@@ -1302,7 +1378,54 @@ def delete_knowledge():
     bigquery_client.delete_table(original_table_ref, not_found_ok=True)
     bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO knowledge_base").result()
 
-    return redirect(url_for('knowledge_base'))
+    return redirect(url_for('manage_knowledge_base'))
+
+### ROUTES FOR BUSINESS TYPE ###
+
+@app.route('/business-type', methods=['GET', 'POST'])
+@login_required
+def business_type():
+    if request.method == 'POST':
+        # Store the selected business type in the session
+        selected_type = request.form['business_type']
+        session['business_type'] = selected_type
+
+        # Redirect to the results page after selection
+        return redirect(url_for('prompt_categories'))
+
+    # Dictionary of business types with their corresponding emojis
+    business_types_with_emojis = {
+        "Agriculture": "🌾",
+        "Automotive": "🚗",
+        "Banking and Finance": "🏦",
+        "Construction": "🏗️",
+        "Creative Arts": "🎨",
+        "Energy": "⚡",
+        "Entertainment": "🎭",
+        "Environmental Services": "🌍",
+        "Fashion": "👗",
+        "Food and Beverage": "🍔",
+        "Insurance": "🛡️",
+        "Legal Services": "⚖️",
+        "Logistics and Supply Chain": "📦",
+        "Manufacturing": "🏭",
+        "Marketing and Advertising": "📢",
+        "Media and Publishing": "📰",
+        "Mining": "⛏️",
+        "Nonprofit": "🎗️",
+        "Real Estate": "🏠",
+        "Retail": "🛍️",
+        "Technology": "💻",
+        "Telecommunications": "📡",
+        "Tourism": "✈️",
+        "Transportation": "🚚",
+        "Utilities": "💡",
+        "Wellness and Fitness": "💪",
+        "Les Socialites": "👑"
+    }
+
+    # Render the business_type.html template, passing the dictionary of business types with emojis
+    return render_template('business_type.html', business_types_with_emojis=business_types_with_emojis)
 
 
 if __name__ == '__main__':
