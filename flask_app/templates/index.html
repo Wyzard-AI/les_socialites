@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wyzard</title>
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.svg') }}" type="image/x-icon">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,7 +16,7 @@
 
         .logo {
             display: block;
-            width: 400px; /* Made the logo bigger */
+            width: 250px; /* Made the logo bigger to match index.html */
             margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
         }
 
@@ -118,9 +119,9 @@
                 <!-- Option to Navigate to Knowledge Base (now a button) -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">📚 Knowledge Base 📚</h5>
+                        <h5 class="card-title">📚 Manage Knowledge Base 📚</h5>
                         <p class="card-text">View, add, or edit knowledge instructions.</p>
-                        <a href="/knowledge-base" class="btn btn-info">Go to Knowledge Base</a>
+                        <a href="/manage-knowledge-base" class="btn btn-info">Go to Manage Knowledge Base</a>
                     </div>
                 </div>
                 <!-- Option to Manage Categories -->

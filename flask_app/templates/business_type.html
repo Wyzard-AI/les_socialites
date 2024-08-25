@@ -3,35 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Categories</title>
+    <title>Select Business Type</title>
     <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.svg') }}" type="image/x-icon">
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #121212;
-            color: #e0e0e0;
+            background-color: #121212; /* Dark background */
+            color: #e0e0e0; /* Light text */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         h1 {
             color: #ffffff;
             text-align: center;
+            margin-bottom: 40px;
         }
 
         .container {
             max-width: 1100px; /* Adjusted to ensure space for three items */
             margin: 0 auto;
+            display: flex;
+            justify-content: center; /* Center the content inside the container */
+            flex-direction: column; /* Stack elements vertically */
+            align-items: center; /* Center the container's content horizontally */
         }
 
         .row {
             display: flex;
             flex-wrap: wrap;
-            justify-content: space-between;
+            justify-content: center; /* Center the buttons within the row */
             gap: 10px; /* Reduced gap for better fit */
         }
 
-        .category-button {
+        .business-button {
             display: inline-block;
             width: calc(30% - 15px); /* Slightly smaller width to fit three per row */
             margin: 5px;
@@ -46,24 +54,24 @@
             transition: background-color 0.3s;
         }
 
-        .category-button:hover {
+        .business-button:hover {
             background-color: #6C3483; /* Darker purple on hover */
         }
 
         @media (max-width: 992px) {
-            .category-button {
+            .business-button {
                 width: calc(50% - 15px); /* Two buttons per row on medium screens */
             }
         }
 
         @media (max-width: 768px) {
-            .category-button {
+            .business-button {
                 width: calc(50% - 15px); /* Two buttons per row on smaller screens */
             }
         }
 
         @media (max-width: 480px) {
-            .category-button {
+            .business-button {
                 width: calc(100% - 15px); /* One button per row on extra small screens */
             }
         }
@@ -71,13 +79,15 @@
 </head>
 <body>
     <div class="container my-5">
-        <h1 class="text-center mb-4">Pick Your AI Assistant</h1>
-        <div class="row justify-content-center">
-            {% for category, emoji in categories_with_emojis.items() %}
-                <a href="/prompt-menu?category={{ category }}" class="category-button">
-                    {{ emoji }} {{ category }}
-                </a>
-            {% endfor %}
+        <h1 class="text-center mb-4">Select Your Business Type</h1>
+        <div class="row">
+            <form method="POST" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+                {% for business_type, emoji in business_types_with_emojis.items() %}
+                    <button type="submit" name="business_type" value="{{ business_type }}" class="business-button">
+                        {{ emoji }} {{ business_type }}
+                    </button>
+                {% endfor %}
+            </form>
         </div>
     </div>
 </body>
