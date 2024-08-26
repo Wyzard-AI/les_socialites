@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from pypdf import PdfReader
-from flask import Flask, request, redirect, render_template, session, flash, url_for
+from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
 from google.cloud import bigquery, secretmanager
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
@@ -279,6 +279,11 @@ class User(UserMixin):
         self.email = email
         self.password = password
 
+def before_request():
+    if not request.is_secure:
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
+
 @login_manager.user_loader
 def load_user(user_id):
     # Query BigQuery to find the user by ID
@@ -297,6 +302,10 @@ def load_user(user_id):
 
     row = list(result)[0]
     return User(user_id=row.id, email=row.email, password=row.password)
+
+@app.route('/robots.txt')
+def robots_txt():
+    return send_from_directory(app.static_folder, 'robots.txt')
 
 @app.route('/')
 @login_required
