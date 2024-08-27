@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prompt Menu</title>
-    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.svg') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -125,8 +125,6 @@
 
         <!-- Combined Upload Document and Prompt Selection Form -->
         <form action="/view-prompt" method="POST" enctype="multipart/form-data">
-            <!-- Hidden input to capture business_type -->
-            <input type="hidden" name="business_type" value="{{ business_type }}">
 
             <div class="mb-3">
                 <label for="file" class="form-label">Upload a Document (optional):</label>
