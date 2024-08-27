@@ -198,12 +198,9 @@
 </head>
 <body>
     <div class="container">
-        <!-- Wyzard Logo -->
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
-
         <h1>ChatGPT Conversation</h1>
 
-        <!-- Flash messages -->
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 <div class="flash-message">
@@ -214,27 +211,33 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Note about accuracy -->
         <div class="note">
             ChatGPT answers are not always 100% accurate so it's important to verify information crucial to your business.
         </div>
 
         <div class="conversation">
-            {% for message in conversation %}
-                {% if message.role == "assistant" %}
-                    <div class="assistant">
-                        <div class="response-block">
-                            {{ message.content|safe }}
-                        </div>
+            {% if is_admin %}
+                <!-- Show prompt and instructions to admin users -->
+                {% for message in conversation %}
+                    <div class="response-block">
+                        {{ message.content|safe }}
                     </div>
-                {% endif %}
-            {% endfor %}
+                {% endfor %}
+            {% else %}
+                <!-- Show only the assistant's response to non-admin users -->
+                {% for message in conversation %}
+                    {% if message.role == "assistant" %}
+                        <div class="assistant">
+                            <div class="response-block">
+                                {{ message.content|safe }}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
         </div>
 
         <form action="/view-prompt" method="POST" enctype="multipart/form-data">
-            <!-- Hidden input to capture business_type -->
-            <input type="hidden" name="business_type" value="{{ business_type }}">
-
             <div>
                 <label for="prompt">Your Message:</label>
                 <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>
@@ -249,11 +252,8 @@
         <a href="/clear-conversation" class="secondary-button">Clear Conversation History</a>
         <a href="/prompt-menu" class="secondary-button">Pick a New Task</a>
         <a href="/prompt-categories" class="secondary-button">Pick a New AI Assistant</a>
-
-        <!-- New Home Page Button -->
         <a href="/" class="secondary-button">Home Page</a>
 
-        <!-- Bottom Buttons Section -->
         <div class="bottom-buttons">
             <a href="/feedback">🐛 Report Bug</a>
             <a href="/feedback">🗺️ Suggest Feature</a>

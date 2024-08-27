@@ -87,7 +87,7 @@ def sanitize_text(text, proper=False):
 
     return text
 
-def get_openai_assistant_response(conversation, openai_client, category=None, business_type=None):
+def get_openai_assistant_response(conversation, openai_client, category=None):
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
         # Default instructions
@@ -96,16 +96,19 @@ def get_openai_assistant_response(conversation, openai_client, category=None, bu
         # Initialize the instructions variable
         instructions = ""
 
-        if business_type:
+        # Retrieve business_name from the session
+        business_name = session.get('business_name')
+
+        if business_name:
             # Fetch knowledge base instructions from BigQuery based on the project_id
             knowledge_query = f"""
                 SELECT STRING_AGG(knowledge_instructions, ' ') AS instructions
                 FROM `{project_id}.{dataset_id}.knowledge_base`
-                WHERE business_type = @business_type
+                WHERE business_name = @business_name
             """
             knowledge_query_config = bigquery.QueryJobConfig(
                 query_parameters=[
-                    bigquery.ScalarQueryParameter("business_id", "STRING", business_type)
+                    bigquery.ScalarQueryParameter("business_name", "STRING", business_name)
                 ]
             )
             knowledge_query_job = bigquery_client.query(knowledge_query, job_config=knowledge_query_config)
@@ -173,17 +176,24 @@ def extract_text_from_file(file):
             text += paragraph.text
     return text
 
-def sanitize_project(project_name):
-    # Remove the string "chat-gpt"
-    sanitized_name = project_name.replace("chat-gpt", "")
+def sanitize_business(business_name):
+    # List of common stopwords to remove
+    stopwords = {"the", "and", "of", "for", "to", "a", "an"}
 
-    # Remove any numbers followed by a hyphen
-    sanitized_name = re.sub(r'-\d+', '', sanitized_name)
+    # Convert to lowercase to standardize
+    cleaned_name = business_name.lower()
 
-    # Remove any trailing hyphens or spaces that might be left after removal
-    sanitized_name = sanitized_name.rstrip('-').strip()
+    # Remove punctuation and special characters except for spaces
+    cleaned_name = re.sub(r'[^\w\s]', '', cleaned_name)
 
-    return sanitized_name
+    # Split the name into words and filter out stopwords
+    words = cleaned_name.split()
+    filtered_words = [word for word in words if word not in stopwords]
+
+    # Rejoin the filtered words and remove extra whitespace
+    cleaned_name = ' '.join(filtered_words).strip()
+
+    return cleaned_name
 
 def get_categories_for_business_type(business_type):
     # Define a dictionary mapping business types to categories
@@ -274,10 +284,11 @@ def make_session_permanent():
     session.permanent = True
 
 class User(UserMixin):
-    def __init__(self, user_id, email, password):
+    def __init__(self, user_id, email, password, business_name):
         self.id = user_id
         self.email = email
         self.password = password
+        self.business_name = business_name
 
 def before_request():
     if not request.is_secure:
@@ -288,7 +299,7 @@ def before_request():
 def load_user(user_id):
     # Query BigQuery to find the user by ID
     query = f"""
-        SELECT id, email, password
+        SELECT id, email, password, business_name
         FROM `{project_id}.{dataset_id}.users`
         WHERE id = @user_id
     """
@@ -301,9 +312,11 @@ def load_user(user_id):
         return None
 
     row = list(result)[0]
-    return User(user_id=row.id, email=row.email, password=row.password)
+    return User(user_id=row.id, email=row.email, password=row.password, business_name=row.business_name)
 
 @app.route('/robots.txt')
+@login_required
+@restricted_access
 def robots_txt():
     return send_from_directory(app.static_folder, 'robots.txt')
 
@@ -357,6 +370,10 @@ def clear_conversation():
     # Clear the session data to start a new conversation
     session.pop('conversation', None)
     return redirect('/view-prompt')
+
+
+
+
 
 ### ROUTES FOR PROMPTS ###
 
@@ -412,9 +429,9 @@ def prompt_menu():
 
     return render_template('prompt_menu.html', category=category, prompts_by_subcategory=prompts_by_subcategory)
 
-
 @app.route('/manage-prompts')
 @login_required
+@restricted_access
 def manage_prompts():
     selected_category = request.args.get('category')
     selected_subcategory = request.args.get('subcategory')
@@ -493,10 +510,9 @@ def manage_prompts():
 
     return render_template('manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
 
-
-
 @app.route('/submit-prompt', methods=['POST'])
 @login_required
+@restricted_access
 def submit_prompt():
     prompt = request.form['prompt']
     category = request.form['category']
@@ -538,7 +554,7 @@ def submit_prompt():
     conversation = [{"role": "user", "content": modified_prompt}]
 
     # Call the get_openai_assistant_response function to handle instructions
-    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category, business_type=None)
+    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
     formatted_response = markdown(response)
 
     # Append the assistant's response to the conversation
@@ -557,7 +573,6 @@ def view_prompt():
         # Get the prompt, category, and business type from the form
         prompt = request.form['prompt']
         category = request.form.get('category')  # Assuming category is provided
-        business_type = request.form.get('business_type')  # Capture business type
 
         # Get the previous conversation from the session
         conversation = session.get('conversation', [])
@@ -572,7 +587,7 @@ def view_prompt():
         conversation.append({"role": "user", "content": modified_prompt})
 
         # Get the response from OpenAI, passing the category and business_type
-        response = get_openai_assistant_response(conversation, openai_client, category=category, business_type=business_type)
+        response = get_openai_assistant_response(conversation, openai_client, category=category)
         formatted_response = markdown(response)
 
         # Append the assistant's response to the conversation
@@ -581,7 +596,11 @@ def view_prompt():
         # Save the conversation to the session
         session['conversation'] = conversation
 
-        return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
+        # Check if the user is an admin
+        user_email = current_user.email
+        is_admin = user_email in ADMIN_EMAILS  # Replace with actual admin emails
+
+        return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
 
     else:
         # Clear the conversation if this is a GET request to start a new conversation
@@ -591,6 +610,7 @@ def view_prompt():
 
 @app.route('/assign-button-name', methods=['POST'])
 @login_required
+@restricted_access
 def assign_button_name():
     prompt_id = request.form['prompt_id']
     button_name = request.form['button_name']
@@ -631,6 +651,7 @@ def assign_button_name():
 
 @app.route('/delete-prompt', methods=['POST'])
 @login_required
+@restricted_access
 def delete_prompt():
     prompt_id = request.form['prompt_id']
 
@@ -681,6 +702,7 @@ def delete_prompt():
 
 @app.route('/edit-prompt', methods=['POST'])
 @login_required
+@restricted_access
 def edit_prompt():
     prompt_id = request.form['prompt_id']
     new_prompt_text = request.form['new_prompt_text']
@@ -726,6 +748,8 @@ def edit_prompt():
 
     print("Prompt update successful. Redirecting to delete-prompts...")
     return redirect('/manage-prompts')
+
+
 
 
 
@@ -779,6 +803,7 @@ def prompt_categories():
 
 @app.route('/manage-categories')
 @login_required
+@restricted_access
 def manage_categories():
     # Fetch distinct categories and their subcategories
     query = f"""
@@ -800,6 +825,7 @@ def manage_categories():
 
 @app.route('/manage-subcategories')
 @login_required
+@restricted_access
 def manage_subcategories():
     category = request.args.get('category')
 
@@ -825,6 +851,7 @@ def manage_subcategories():
 
 @app.route('/add-categories', methods=['POST'])
 @login_required
+@restricted_access
 def add_categories():
     categories_input = request.form['categories']  # Expecting a single input string
 
@@ -890,6 +917,7 @@ def add_categories():
 
 @app.route('/add-subcategories', methods=['POST'])
 @login_required
+@restricted_access
 def add_subcategories():
     category = request.form['category']
     subcategories_input = request.form['subcategories']  # Expecting a single input string
@@ -957,6 +985,7 @@ def add_subcategories():
 
 @app.route('/edit-category', methods=['POST'])
 @login_required
+@restricted_access
 def edit_category():
     old_category = request.form['old_category']
     new_category_name = request.form['new_category_name']
@@ -1000,6 +1029,7 @@ def edit_category():
 
 @app.route('/edit-subcategory', methods=['POST'])
 @login_required
+@restricted_access
 def edit_subcategory():
     category = request.form['category']
     old_subcategory = request.form['old_subcategory']
@@ -1049,6 +1079,7 @@ def edit_subcategory():
 
 @app.route('/delete-category', methods=['POST'])
 @login_required
+@restricted_access
 def delete_category():
     category = request.form['category']
 
@@ -1090,6 +1121,7 @@ def delete_category():
 
 @app.route('/delete-subcategory', methods=['POST'])
 @login_required
+@restricted_access
 def delete_subcategory():
     category = request.form['category']
     subcategory = request.form['subcategory']
@@ -1133,10 +1165,13 @@ def delete_subcategory():
 
 
 
+
+
 ### ROUTES FOR INSTRUCTIONS ###
 
 @app.route('/update-instructions', methods=['POST'])
 @login_required
+@restricted_access
 def update_instructions():
     category = request.form['category']
     new_instructions = request.form['instructions']
@@ -1179,6 +1214,10 @@ def update_instructions():
 
     return redirect('/')
 
+
+
+
+
 ### ROUTES FOR FEEDBACK/MAIL ###
 
 @app.route('/feedback')
@@ -1210,7 +1249,11 @@ def send_feedback():
 
     return redirect(url_for('feedback'))
 
-### ROUTES FOR LOGIN ###
+
+
+
+
+### ROUTES FOR LOGIN/REGISTRATION ###
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -1223,12 +1266,15 @@ def register():
         "jenny@lessocialites.com",
         "ruth@lessocialites.com",
         "imen@lessocialites.com",
-        "wyzard.feedback@gmail.com"
+        "wyzard.feedback@gmail.com",
+        "felix@lessocialites.com",
+        "karen@lessocialites.com"
     ]
 
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+        business_name = request.form['business_name']
 
         # Check if the email is in the whitelist
         if email not in whitelisted_emails:
@@ -1260,6 +1306,7 @@ def register():
                 "id": user_id,
                 "email": email,
                 "password": hashed_password,
+                "business_name": sanitize_business(business_name),
                 "timestamp": datetime.now().isoformat()
             }
         ]
@@ -1280,7 +1327,7 @@ def login():
 
         # Query BigQuery for the user
         query = f"""
-            SELECT id, email, password
+            SELECT id, email, password, business_name
             FROM `{project_id}.{dataset_id}.users`
             WHERE email = @email
             LIMIT 1
@@ -1295,11 +1342,12 @@ def login():
             return redirect(url_for('login'))
 
         row = list(result)[0]
-        user = User(user_id=row.id, email=row.email, password=row.password)
+        user = User(user_id=row.id, email=row.email, password=row.password, business_name=row.business_name)
 
         if check_password_hash(user.password, password):
             login_user(user)
-            session['user_email'] = user.email  # Store the user's email in the session
+            session['user_email'] = user.email  # Store the email in the session
+            session['business_name'] = user.business_name  # Store the business name in the session
             return redirect(url_for('business_type'))
         else:
             flash("Email or password is incorrect.")
@@ -1314,57 +1362,74 @@ def logout():
     return redirect(url_for('login'))
 
 
+
+
+
 ### ROUTES FOR KNOWLEDGE BASE ###
 
-@app.route('/manage-knowledge-base')
+@app.route('/manage-knowledge-base', methods=['GET', 'POST'])
 @login_required
+@restricted_access
 def manage_knowledge_base():
-    # Retrieve selected business type from query parameters
-    business_type = request.args.get('business_type', '')
+    # Retrieve selected business name from query parameters for filtering
+    selected_business_name = request.args.get('filter_business_name', '')
 
-    # Fetch knowledge instructions from BigQuery filtered by business type
+    # Query to fetch knowledge instructions filtered by business name if selected
     query = f"""
-        SELECT id, business_type, knowledge_instructions
+        SELECT id, business_name, knowledge_instructions
         FROM `{project_id}.{dataset_id}.knowledge_base`
-        WHERE business_type = @business_type
+        WHERE (@business_name = '' OR business_name = @business_name)
         ORDER BY timestamp DESC
     """
     query_config = bigquery.QueryJobConfig(
-        query_parameters=[bigquery.ScalarQueryParameter("business_type", "STRING", business_type)]
+        query_parameters=[
+            bigquery.ScalarQueryParameter("business_name", "STRING", selected_business_name)
+        ]
     )
     query_job = bigquery_client.query(query, job_config=query_config)
     knowledge_instructions = [
-        {"id": row.id, "business_type": row.business_type, "knowledge_instructions": row.knowledge_instructions}
+        {"id": row.id, "business_name": row.business_name, "knowledge_instructions": row.knowledge_instructions}
         for row in query_job.result()
     ]
 
-    # Fetch available business types for the dropdown
-    business_types = ["Agriculture", "Automotive", "Banking and Finance", "Construction", "Creative Arts", "Energy", "Entertainment", "Environmental Services", "Fashion", "Food and Beverage", "Insurance", "Legal Services", "Logistics and Supply Chain", "Manufacturing", "Marketing and Advertising", "Media and Publishing", "Mining", "Nonprofit", "Real Estate", "Retail", "Technology", "Telecommunications", "Tourism", "Transportation", "Utilities", "Wellness and Fitness", "Les Socialites"]
+    # Fetch distinct business names from BigQuery for the dropdown
+    business_names_query = f"""
+        SELECT DISTINCT business_name
+        FROM `{project_id}.{dataset_id}.knowledge_base`
+        ORDER BY business_name
+    """
+    business_names_job = bigquery_client.query(business_names_query)
+    business_names = [row.business_name for row in business_names_job.result()]
 
-    return render_template('manage_knowledge_base.html', knowledge_instructions=knowledge_instructions, business_types=business_types)
+    return render_template('manage_knowledge_base.html',
+                           knowledge_instructions=knowledge_instructions,
+                           business_names=business_names,
+                           selected_business_name=selected_business_name)
 
 
 @app.route('/submit-knowledge', methods=['POST'])
 @login_required
+@restricted_access
 def submit_knowledge():
     knowledge_instructions = request.form['knowledge_instructions']
-    business_type = request.form['business_type']
+    business_name = request.form['business_name']
 
     # Insert into BigQuery
     rows_to_insert = [
         {
             "id": str(uuid.uuid4()),
-            "business_type": business_type,
+            "business_name": business_name,
             "knowledge_instructions": sanitize_text(knowledge_instructions),
             "timestamp": datetime.now().isoformat()
         }
     ]
     bigquery_client.insert_rows_json(f"{dataset_id}.knowledge_base", rows_to_insert)
 
-    return redirect(url_for('manage_knowledge_base', business_type=business_type))
+    return redirect(url_for('manage_knowledge_base', business_name=business_name))
 
 @app.route('/delete-knowledge', methods=['POST'])
 @login_required
+@restricted_access
 def delete_knowledge():
     instruction_id = request.form['id']
 
@@ -1388,6 +1453,38 @@ def delete_knowledge():
     bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO knowledge_base").result()
 
     return redirect(url_for('manage_knowledge_base'))
+
+@app.route('/submit-knowledge-instructions', methods=['POST'])
+@login_required
+def submit_knowledge_instructions():
+    knowledge_instructions = request.form['knowledge_instructions']
+    business_name = session.get('business_name')
+
+    if not business_name:
+        flash("Business name not found in session.")
+        return redirect(url_for('business_type'))
+
+    # Insert into BigQuery
+    rows_to_insert = [
+        {
+            "id": str(uuid.uuid4()),
+            "business_name": business_name,
+            "knowledge_instructions": sanitize_text(knowledge_instructions),
+            "timestamp": datetime.now().isoformat()
+        }
+    ]
+
+    try:
+        bigquery_client.insert_rows_json(f"{dataset_id}.knowledge_base", rows_to_insert)
+        flash("Knowledge instructions added successfully.")
+    except Exception as e:
+        flash(f"An error occurred: {e}")
+
+    return redirect(url_for('prompt_categories'))
+
+
+
+
 
 ### ROUTES FOR BUSINESS TYPE ###
 
@@ -1435,7 +1532,6 @@ def business_type():
 
     # Render the business_type.html template, passing the dictionary of business types with emojis
     return render_template('business_type.html', business_types_with_emojis=business_types_with_emojis)
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

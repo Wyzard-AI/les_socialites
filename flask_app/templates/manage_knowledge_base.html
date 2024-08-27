@@ -106,14 +106,30 @@
     <div class="container">
         <h1>Manage Knowledge Base</h1>
 
+        <!-- Filter Form to Select Business Name -->
+        <div class="card">
+            <form action="/manage-knowledge-base" method="GET">
+                <div class="mb-3">
+                    <label for="filter_business_name" class="form-label">Filter by Business Name:</label>
+                    <select id="filter_business_name" name="filter_business_name" class="form-control">
+                        <option value="">Show All</option>
+                        {% for name in business_names %}
+                            <option value="{{ name }}" {% if name == selected_business_name %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Filter</button>
+            </form>
+        </div>
+
         <!-- Form to Submit New Knowledge Instruction -->
         <div class="card">
             <form action="/submit-knowledge" method="POST">
                 <div class="mb-3">
-                    <label for="business_type" class="form-label">Select Business Type:</label>
-                    <select id="business_type" name="business_type" class="form-control" required>
-                        {% for type in business_types %}
-                            <option value="{{ type }}">{{ type }}</option>
+                    <label for="business_name" class="form-label">Select Business Name:</label>
+                    <select id="business_name" name="business_name" class="form-control" required>
+                        {% for name in business_names %}
+                            <option value="{{ name }}">{{ name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -130,7 +146,7 @@
             {% for instruction in knowledge_instructions %}
                 <div class="knowledge-block">
                     <p>ID: {{ instruction.id }}</p>
-                    <p>Business Type: {{ instruction.business_type }}</p>
+                    <p>Business Name: {{ instruction.business_name }}</p>
                     <p>{{ instruction.knowledge_instructions }}</p>
                     <form action="/delete-knowledge" method="POST">
                         <input type="hidden" name="id" value="{{ instruction.id }}">
