@@ -18,6 +18,7 @@ automatic_scaling:
 
 handlers:
 - url: /.*
+  secure: always
   script: auto
 
 env_variables:
@@ -33,3 +34,6 @@ health_check:
 readiness_check:
   check_interval_sec: 10
   timeout_sec: 300
+
+beta_settings:
+    cloud_sql_instances: "les-socialites-chat-gpt:us-east1:wyzard"
