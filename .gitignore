@@ -2,3 +2,4 @@ socialites/
 helper_scripts/
 data_dumps/
 config.json
+cloud_sql_proxy

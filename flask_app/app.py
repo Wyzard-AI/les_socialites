@@ -1,12 +1,11 @@
 ### IMPORTS START ###
 import os
-import json
 import re
 import uuid
 from pypdf import PdfReader
 from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
 from google.cloud import bigquery, secretmanager
-from google.oauth2 import service_account
+from google.cloud.sql.connector import Connector, IPTypes
 from datetime import datetime, timedelta
 from openai import OpenAI
 from werkzeug.utils import secure_filename
@@ -18,6 +17,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
 ### FUNCTIONS START ###
+def get_connection():
+    return connector.connect(
+        "les-socialites-chat-gpt:us-east1:wyzard",  # Replace with your actual instance connection name
+        "pg8000",  # This is the PostgreSQL driver for Cloud SQL
+        user="postgres",
+        password=get_secret('cloudsql-postgres-user-password'),  # Securely store and retrieve from environment variables
+        db="wyzard_flask",
+        ip_type=IPTypes.PUBLIC,  # or IPTypes.PRIVATE for private IP
+    )
+
 def get_secret(secret_name):
     secret_client = secretmanager.SecretManagerServiceClient()
     secret_resource_name = f"projects/916481347801/secrets/{secret_name}/versions/1"
@@ -25,47 +34,62 @@ def get_secret(secret_name):
     secret_payload = response.payload.data.decode('UTF-8')
     return secret_payload
 
-def fetch_prompts_from_bigquery(project_id, dataset_id, table_id, category=None, subcategory=None):
-    table_ref = f"`{project_id}.{dataset_id}.{table_id}`"
-
+def fetch_prompts_from_postgres(category=None, subcategory=None):
+    # Create the base SQL query
     query = f"""
         SELECT id, prompt, category, subcategory, button_name
-        FROM {table_ref}
+        FROM app.prompts
     """
 
     query_params = []
+    conditions = []
+
+    # Add filtering conditions if category or subcategory are provided
     if category:
-        query += " WHERE category = @category"
-        query_params.append(bigquery.ScalarQueryParameter("category", "STRING", category))
+        conditions.append("category = %s")
+        query_params.append(category)
 
     if subcategory:
-        query += " AND subcategory = @subcategory"
-        query_params.append(bigquery.ScalarQueryParameter("subcategory", "STRING", subcategory))
+        conditions.append("subcategory = %s")
+        query_params.append(subcategory)
 
-    query += "ORDER BY category, subcategory"
+    # Combine conditions with AND and add to the query
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
 
-    if query_params:
-        query_config = bigquery.QueryJobConfig(query_parameters=query_params)
-    else:
-        query_config = None  # Ensure query_config is None if no parameters
+    query += " ORDER BY category, subcategory"
 
-    query_job = bigquery_client.query(query, job_config=query_config)
-    results = query_job.result()
+    try:
+        # Establish the connection to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
 
-    if results is None:
+        # Execute the query with parameters
+        cursor.execute(query, tuple(query_params))
+        results = cursor.fetchall()
+
+        # Process the results
+        prompts = []
+        for row in results:
+            prompts.append({
+                "id": row[0],
+                "prompt": row[1],
+                "category": row[2],
+                "subcategory": row[3],
+                "button_name": row[4]
+            })
+
+        return prompts
+
+    except Exception as e:
+        print(f"Error: {e}")
         return []
 
-    prompts = []
-    for row in results:
-        prompts.append({
-            "id": row.id,
-            "prompt": row.prompt,
-            "category": row.category,
-            "subcategory": row.subcategory,
-            "button_name": row.button_name
-        })
-
-    return prompts
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 def sanitize_text(text, proper=False):
     # Replace newline and carriage return characters with spaces
@@ -99,44 +123,45 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
         # Retrieve business_name from the session
         business_name = session.get('business_name')
 
-        if business_name:
-            # Fetch knowledge base instructions from BigQuery based on the project_id
-            knowledge_query = f"""
-                SELECT STRING_AGG(knowledge_instructions, ' ') AS instructions
-                FROM `{project_id}.{dataset_id}.knowledge_base`
-                WHERE business_name = @business_name
-            """
-            knowledge_query_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter("business_name", "STRING", business_name)
-                ]
-            )
-            knowledge_query_job = bigquery_client.query(knowledge_query, job_config=knowledge_query_config)
-            knowledge_result = knowledge_query_job.result()
+        try:
+            # Establish the connection to the Postgres CloudSQL instance
+            connection = get_connection()
+            cursor = connection.cursor()
 
-            for row in knowledge_result:
-                if row.instructions:
-                    instructions += "Knowledge Base Instruction: " + row.instructions + " "
+            # Fetch knowledge base instructions from Postgres
+            if business_name:
+                knowledge_query = """
+                    SELECT STRING_AGG(knowledge_instructions, ' ') AS instructions
+                    FROM app.knowledge_base
+                    WHERE business_name = %s
+                """
+                cursor.execute(knowledge_query, (business_name,))
+                knowledge_result = cursor.fetchone()
 
-        # Fetch category-specific instructions from BigQuery
-        if category:
-            category_query = f"""
-                SELECT instructions
-                FROM `{project_id}.{dataset_id}.{table_id}`
-                WHERE category = @category
-                LIMIT 1
-            """
-            category_query_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter("category", "STRING", category)
-                ]
-            )
-            category_query_job = bigquery_client.query(category_query, job_config=category_query_config)
-            category_result = category_query_job.result()
+                if knowledge_result and knowledge_result[0]:
+                    instructions += "Knowledge Base Instruction: " + knowledge_result[0] + " "
 
-            for row in category_result:
-                if row.instructions:
-                    instructions += "Category-Specific Instruction: " + row.instructions + " "
+            # Fetch category-specific instructions from Postgres
+            if category:
+                category_query = """
+                    SELECT instructions
+                    FROM app.prompts
+                    WHERE category = %s
+                    LIMIT 1
+                """
+                cursor.execute(category_query, (category,))
+                category_result = cursor.fetchone()
+
+                if category_result and category_result[0]:
+                    instructions += "Category-Specific Instruction: " + category_result[0] + " "
+
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
 
         # If no instructions were found, use the default instructions
         if not instructions:
@@ -255,14 +280,15 @@ app.permanent_session_lifetime = timedelta(minutes=10)
 # Set maximum file size to 16MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-project_id = 'les-socialites-chat-gpt'
-dataset_id = 'prompt_manager'
-table_id = 'prompts'
+connector = Connector()
 
-bigquery_service_key = get_secret('les-socialites-bigquery-service-account-key')
-service_account_info = json.loads(bigquery_service_key)
-credentials = service_account.Credentials.from_service_account_info(service_account_info)
-bigquery_client = bigquery.Client(credentials=credentials, project=service_account_info['project_id'])
+# postgres_config = {
+#     'user': 'postgres',
+#     'password': get_secret('cloudsql-postgres-user-password'),
+#     'dbname': 'wyzard_flask',
+#     'host': '/cloudsql/les-socialites-chat-gpt:us-east1:wyzard',
+#     'port': 5432  # Default PostgreSQL port
+# }
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
@@ -297,22 +323,35 @@ def before_request():
 
 @login_manager.user_loader
 def load_user(user_id):
-    # Query BigQuery to find the user by ID
-    query = f"""
-        SELECT id, email, password, business_name
-        FROM `{project_id}.{dataset_id}.users`
-        WHERE id = @user_id
-    """
-    query_job = bigquery_client.query(query, job_config=bigquery.QueryJobConfig(
-        query_parameters=[bigquery.ScalarQueryParameter("user_id", "STRING", user_id)]
-    ))
-    result = query_job.result()
+    try:
+        # Establish the connection to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
 
-    if not result:
+        # Query the app.users table to find the user by ID
+        query = """
+            SELECT id, email, password, business_name
+            FROM app.users
+            WHERE id = %s
+        """
+        cursor.execute(query, (user_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            return None
+
+        # Create and return a User object
+        return User(user_id=result[0], email=result[1], password=result[2], business_name=result[3])
+
+    except Exception as e:
+        print(f"Error: {e}")
         return None
 
-    row = list(result)[0]
-    return User(user_id=row.id, email=row.email, password=row.password, business_name=row.business_name)
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 @app.route('/robots.txt')
 @login_required
@@ -388,46 +427,60 @@ def prompt_menu():
     # Get the categories for the selected business type
     categories = get_categories_for_business_type(business_type)
 
-    if category and category in categories:
-        # Fetch distinct subcategories and their associated prompts based on the selected category
-        query = f"""
-            SELECT subcategory, prompt, button_name
-            FROM `{project_id}.{dataset_id}.{table_id}`
-            WHERE category = @category
-            ORDER BY subcategory, prompt
-        """
-        query_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("category", "STRING", category)
-            ]
-        )
-    else:
-        # Fetch all prompts when no category is specified or category is not in the business type's categories
-        query = f"""
-            SELECT category, subcategory, prompt, button_name
-            FROM `{project_id}.{dataset_id}.{table_id}`
-            WHERE category IN UNNEST(@categories)
-            ORDER BY category, subcategory, prompt
-        """
-        query_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ArrayQueryParameter("categories", "STRING", categories)
-            ]
-        )
+    # Connect to the Postgres CloudSQL instance
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
 
-    query_job = bigquery_client.query(query, job_config=query_config)
+        # If a category is selected and it's valid for the business, fetch subcategories and prompts
+        if category and category in categories:
+            query = """
+                SELECT subcategory, prompt, button_name
+                FROM app.prompts
+                WHERE category = %s
+                ORDER BY subcategory, prompt
+            """
+            cursor.execute(query, (category,))
+        else:
+            # If no category is specified or invalid, fetch all prompts in valid categories
+            query = """
+                SELECT category, subcategory, prompt, button_name
+                FROM app.prompts
+                WHERE category = ANY(%s)
+                ORDER BY category, subcategory, prompt
+            """
+            cursor.execute(query, (tuple(categories),))
 
-    # Organize prompts by subcategory
-    prompts_by_subcategory = {}
-    for row in query_job.result():
-        if row.subcategory not in prompts_by_subcategory:
-            prompts_by_subcategory[row.subcategory] = []
-        prompts_by_subcategory[row.subcategory].append({
-            'prompt': row.prompt,
-            'button_name': row.button_name
-        })
+        results = cursor.fetchall()
 
-    return render_template('prompt_menu.html', category=category, prompts_by_subcategory=prompts_by_subcategory)
+        # Organize prompts by subcategory
+        prompts_by_subcategory = {}
+        for row in results:
+            subcategory, prompt, button_name = row[0], row[1], row[2]
+            if subcategory not in prompts_by_subcategory:
+                prompts_by_subcategory[subcategory] = []
+            prompts_by_subcategory[subcategory].append({
+                'prompt': prompt,
+                'button_name': button_name
+            })
+
+        # Define the desired order of subcategories
+        subcategory_order = ["Find", "Analyze", "Create", "Review"]
+
+        # Sort the prompts by the desired subcategory order
+        sorted_prompts_by_subcategory = {subcategory: prompts_by_subcategory[subcategory] for subcategory in subcategory_order if subcategory in prompts_by_subcategory}
+
+        return render_template('prompt_menu.html', category=category, prompts_by_subcategory=sorted_prompts_by_subcategory)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return f"An error occurred: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 @app.route('/manage-prompts')
 @login_required
@@ -436,79 +489,93 @@ def manage_prompts():
     selected_category = request.args.get('category')
     selected_subcategory = request.args.get('subcategory')
 
-    # Fetch categories for the dropdown
-    query = f"""
-        SELECT DISTINCT category
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        ORDER BY category
-    """
-    query_job = bigquery_client.query(query)
-    categories = [row.category for row in query_job.result()]
+    # Connect to the Postgres CloudSQL instance
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
 
-    # Fetch subcategories for the dropdown based on the selected category
-    if selected_category:
-        subcategory_query = f"""
-            SELECT DISTINCT subcategory
-            FROM `{project_id}.{dataset_id}.{table_id}`
-            WHERE category = @category
-            ORDER BY subcategory
+        # Fetch categories for the dropdown
+        categories_query = """
+            SELECT DISTINCT category
+            FROM app.prompts
+            ORDER BY category
         """
-        subcategory_job = bigquery_client.query(subcategory_query, job_config=bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("category", "STRING", selected_category)]
-        ))
-        subcategories = [row.subcategory for row in subcategory_job.result()]
-    else:
-        # Fetch all distinct subcategories if no category is selected
-        subcategory_query = f"""
-            SELECT DISTINCT subcategory
-            FROM `{project_id}.{dataset_id}.{table_id}`
-            ORDER BY subcategory
+        cursor.execute(categories_query)
+        categories = [row[0] for row in cursor.fetchall()]
+
+        # Fetch subcategories for the dropdown based on the selected category
+        if selected_category:
+            subcategory_query = """
+                SELECT DISTINCT subcategory
+                FROM app.prompts
+                WHERE category = %s
+                ORDER BY subcategory
+            """
+            cursor.execute(subcategory_query, (selected_category,))
+        else:
+            # Fetch all distinct subcategories if no category is selected
+            subcategory_query = """
+                SELECT DISTINCT subcategory
+                FROM app.prompts
+                ORDER BY subcategory
+            """
+            cursor.execute(subcategory_query)
+
+        subcategories = [row[0] for row in cursor.fetchall()]
+
+        # Construct the WHERE clause dynamically based on user selection
+        where_clauses = []
+        query_params = []
+
+        if selected_category:
+            where_clauses.append("category = %s")
+            query_params.append(selected_category)
+
+        if selected_subcategory:
+            where_clauses.append("subcategory = %s")
+            query_params.append(selected_subcategory)
+
+        # Construct the final query
+        if where_clauses:
+            where_clause = " WHERE " + " AND ".join(where_clauses)
+        else:
+            where_clause = ""
+
+        final_query = f"""
+            SELECT id, prompt, category, subcategory, button_name
+            FROM app.prompts
+            {where_clause}
+            ORDER BY category, subcategory
         """
-        subcategory_job = bigquery_client.query(subcategory_query)
-        subcategories = [row.subcategory for row in subcategory_job.result()]
 
-    # Construct the WHERE clause dynamically based on user selection
-    where_clauses = []
-    query_params = []
+        cursor.execute(final_query, tuple(query_params))
+        prompts = cursor.fetchall()
 
-    if selected_category:
-        where_clauses.append("category = @category")
-        query_params.append(bigquery.ScalarQueryParameter("category", "STRING", selected_category))
+        # Organize prompts by subcategory
+        prompts_by_subcategory = {}
+        for prompt in prompts:
+            prompt_id, prompt_text, category, subcategory, button_name = prompt
+            if subcategory not in prompts_by_subcategory:
+                prompts_by_subcategory[subcategory] = []
+            prompts_by_subcategory[subcategory].append({
+                'id': prompt_id,
+                'prompt': prompt_text,
+                'category': category,
+                'subcategory': subcategory,
+                'button_name': button_name
+            })
 
-    if selected_subcategory:
-        where_clauses.append("subcategory = @subcategory")
-        query_params.append(bigquery.ScalarQueryParameter("subcategory", "STRING", selected_subcategory))
+        return render_template('manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
 
-    # Construct the final query
-    if where_clauses:
-        where_clause = " WHERE " + " AND ".join(where_clauses)
-    else:
-        where_clause = ""
+    except Exception as e:
+        print(f"Error: {e}")
+        return "An error occurred.", 500
 
-    final_query = f"""
-        SELECT id, prompt, category, subcategory, button_name
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        {where_clause}
-        ORDER BY category, subcategory
-    """
-
-    query_job = bigquery_client.query(final_query, job_config=bigquery.QueryJobConfig(query_parameters=query_params))
-    prompts = query_job.result()
-
-    # Organize prompts by subcategory
-    prompts_by_subcategory = {}
-    for prompt in prompts:
-        if prompt.subcategory not in prompts_by_subcategory:
-            prompts_by_subcategory[prompt.subcategory] = []
-        prompts_by_subcategory[prompt.subcategory].append({
-            'id': prompt.id,
-            'prompt': prompt.prompt,
-            'category': prompt.category,
-            'subcategory': prompt.subcategory,
-            'button_name': prompt.button_name
-        })
-
-    return render_template('manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 @app.route('/submit-prompt', methods=['POST'])
 @login_required
@@ -529,25 +596,45 @@ def submit_prompt():
     sanitized_subcategory = sanitize_text(subcategory, proper=True) if subcategory else None
     sanitized_button_name = sanitize_text(button_name, proper=True) if button_name else None
     prompt_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat()
 
-    # Inserting prompt data into BigQuery without handling instructions here
-    rows_to_insert = [
-        {
-            "id": prompt_id,
-            "prompt": sanitized_prompt,
-            "category": sanitized_category,
-            "subcategory": sanitized_subcategory,
-            "button_name": sanitized_button_name,
-            "timestamp": datetime.now().isoformat()
-        }
-    ]
+    # Define the SQL query for inserting the prompt data
+    insert_query = """
+        INSERT INTO app.prompts (id, prompt, category, subcategory, button_name, timestamp)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
+    # Data to be inserted
+    data_to_insert = (
+        prompt_id,
+        sanitized_prompt,
+        sanitized_category,
+        sanitized_subcategory,
+        sanitized_button_name,
+        timestamp
+    )
 
     try:
-        errors = bigquery_client.insert_rows_json(f"{dataset_id}.{table_id}", rows_to_insert)
-        if errors:
-            return f"Encountered errors while inserting rows: {errors}", 500
+        # Connect to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the insert query
+        cursor.execute(insert_query, data_to_insert)
+
+        # Commit the transaction
+        connection.commit()
+
     except Exception as e:
-        return f"An error occurred: {e}", 500
+        print(f"An error occurred: {e}")
+        return "An error occurred while inserting the prompt data.", 500
+
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     # Prepare the conversation without adding instructions here
     modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
@@ -563,7 +650,7 @@ def submit_prompt():
     # Store the conversation in the session
     session['conversation'] = conversation
 
-    # URL-encode the prompt, response, and category to ensure they are safe for use in a URL
+    # Render the results.html template with the conversation details
     return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
 
 @app.route('/view-prompt', methods=['GET', 'POST'])
@@ -618,34 +705,34 @@ def assign_button_name():
     if not prompt_id or not button_name:
         return "Prompt ID and button name cannot be empty", 400
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, updating the button name for the selected prompt
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            category,
-            subcategory,
-            instructions,
-            CASE WHEN id = @prompt_id THEN @button_name ELSE button_name END as button_name,
-            timestamp
-        FROM {original_table_ref}
+    # SQL query to update the button_name for the specified prompt_id
+    update_query = """
+        UPDATE app.prompts
+        SET button_name = %s
+        WHERE id = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id),
-            bigquery.ScalarQueryParameter("button_name", "STRING", button_name)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+    try:
+        # Connect to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the update query
+        cursor.execute(update_query, (button_name, prompt_id))
+
+        # Commit the transaction
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "An error occurred while updating the button name.", 500
+
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/delete-prompts')
 
@@ -658,45 +745,33 @@ def delete_prompt():
     if not prompt_id:
         return "Prompt ID is required", 400
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, excluding the selected prompt
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            CASE WHEN id = @prompt_id THEN NULL
-            ELSE id
-        END AS id,
-        prompt,
-        category,
-        subcategory,
-        instructions,
-        button_name,
-        timestamp
-        FROM {original_table_ref}
+    # SQL query to delete the prompt with the specified prompt_id
+    delete_query = """
+        DELETE FROM app.prompts
+        WHERE id = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id)
-        ]
-    )
+
     try:
-        bigquery_client.query(query, job_config=query_config).result()
-        print(f"Successfully created temp table excluding the selected prompt.")
+        # Connect to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (prompt_id,))
+
+        # Commit the transaction
+        connection.commit()
+
     except Exception as e:
-        print(f"Error during table creation: {e}")
+        print(f"An error occurred: {e}")
         return f"An error occurred during prompt deletion: {e}", 500
 
-    # Step 3: Replace the original table with the new table
-    try:
-        bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-        bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
-        print(f"Successfully replaced original table with temp table.")
-    except Exception as e:
-        print(f"Error during table replacement: {e}")
-        return f"An error occurred during table replacement: {e}", 500
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-prompts')
 
@@ -713,40 +788,38 @@ def edit_prompt():
     # Debugging: Print the prompt_id and new_prompt_text
     print(f"Editing prompt: {prompt_id} with new text: {new_prompt_text}")
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, updating the prompt text for the selected prompt
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            CASE WHEN id = @prompt_id THEN @new_prompt_text ELSE prompt END as prompt,
-            category,
-            subcategory,
-            instructions,
-            button_name,
-            timestamp
-        FROM {original_table_ref}
+    # SQL query to update the prompt text for the specified prompt_id
+    update_query = """
+        UPDATE app.prompts
+        SET prompt = %s
+        WHERE id = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id),
-            bigquery.ScalarQueryParameter("new_prompt_text", "STRING", new_prompt_text)
-        ]
-    )
 
-    # Debugging: Log the query execution
-    print("Executing query to update prompt...")
-    bigquery_client.query(query, job_config=query_config).result()
+    try:
+        # Connect to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
 
-    # Step 3: Replace the original table with the new table
-    print(f"Replacing table {original_table_ref} with {temp_table_ref}...")
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+        # Execute the update query
+        cursor.execute(update_query, (new_prompt_text, prompt_id))
 
-    print("Prompt update successful. Redirecting to delete-prompts...")
+        # Commit the transaction
+        connection.commit()
+
+        # Debugging: Confirm successful update
+        print("Prompt update successful.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred during prompt update: {e}", 500
+
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
     return redirect('/manage-prompts')
 
 
@@ -805,21 +878,36 @@ def prompt_categories():
 @login_required
 @restricted_access
 def manage_categories():
-    # Fetch distinct categories and their subcategories
-    query = f"""
+    query = """
         SELECT DISTINCT category, subcategory
-        FROM `{project_id}.{dataset_id}.{table_id}`
+        FROM app.prompts
         ORDER BY category, subcategory
     """
-    query_job = bigquery_client.query(query)
-    results = query_job.result()
 
     categories = {}
-    for row in results:
-        if row.category not in categories:
-            categories[row.category] = []
-        if row.subcategory and row.subcategory not in categories[row.category]:
-            categories[row.category].append(row.subcategory)
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+
+        for row in results:
+            category, subcategory = row
+            if category not in categories:
+                categories[category] = []
+            if subcategory and subcategory not in categories[category]:
+                categories[category].append(subcategory)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while fetching categories: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return render_template('manage_categories.html', categories=categories)
 
@@ -832,20 +920,30 @@ def manage_subcategories():
     if not category:
         return redirect('/manage-categories')
 
-    # Fetch subcategories for the specific category
-    query = f"""
+    query = """
         SELECT DISTINCT subcategory
-        FROM `{project_id}.{dataset_id}.{table_id}`
-        WHERE category = @category
+        FROM app.prompts
+        WHERE category = %s
         ORDER BY subcategory
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", category)
-        ]
-    )
-    query_job = bigquery_client.query(query, job_config=query_config)
-    subcategories = [row.subcategory for row in query_job.result()]
+
+    subcategories = []
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query, (category,))
+        subcategories = [row[0] for row in cursor.fetchall()]
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while fetching subcategories: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return render_template('manage_subcategories.html', category=category, subcategories=subcategories)
 
@@ -853,65 +951,39 @@ def manage_subcategories():
 @login_required
 @restricted_access
 def add_categories():
-    categories_input = request.form['categories']  # Expecting a single input string
+    categories_input = request.form['categories']
 
     if not categories_input:
         return "No categories provided", 400
 
-    # Split the input string by commas and strip any whitespace
     categories = [category.strip() for category in categories_input.split(',')]
-
-    # Sanitize and prepare the categories
     sanitized_categories = [sanitize_text(category, proper=True) for category in categories]
 
-    # Prepare the data to be loaded
     rows_to_insert = [
-        {
-            "id": str(uuid.uuid4()),
-            "prompt": None,
-            "category": category,
-            "subcategory": None,
-            "button_name": None,
-            "timestamp": datetime.now().isoformat()
-        }
+        (str(uuid.uuid4()), None, category, None, None, datetime.now())
         for category in sanitized_categories
     ]
 
-    # Write the data to a JSON file
-    json_filename = "/tmp/categories_to_insert.json"
+    insert_query = """
+        INSERT INTO app.prompts (id, prompt, category, subcategory, button_name, timestamp)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
     try:
-        with open(json_filename, 'w') as json_file:
-            for row in rows_to_insert:
-                json.dump(row, json_file)
-                json_file.write('\n')  # Write each JSON object on a new line (NDJSON format)
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.executemany(insert_query, rows_to_insert)
+        connection.commit()
 
-        # Define the BigQuery table
-        table_id = "les-socialites-chat-gpt.prompt_manager.prompts"
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while inserting categories: {e}", 500
 
-        # Load the JSON file into BigQuery
-        job_config = bigquery.LoadJobConfig(
-            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-            schema=[
-                bigquery.SchemaField("id", "STRING"),
-                bigquery.SchemaField("prompt", "STRING"),
-                bigquery.SchemaField("category", "STRING"),
-                bigquery.SchemaField("subcategory", "STRING"),
-                bigquery.SchemaField("button_name", "STRING"),
-                bigquery.SchemaField("timestamp", "TIMESTAMP"),
-            ],
-        )
-
-        with open(json_filename, "rb") as source_file:
-            load_job = bigquery_client.load_table_from_file(source_file, table_id, job_config=job_config)
-
-        load_job.result()  # Wait for the job to complete
-
-        if load_job.errors:
-            return f"Encountered errors while loading data: {load_job.errors}", 500
     finally:
-        # Delete the temporary JSON file after the load is complete
-        if os.path.exists(json_filename):
-            os.remove(json_filename)
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-categories')
 
@@ -931,55 +1003,36 @@ def add_subcategories():
     # Sanitize and prepare the subcategories
     sanitized_subcategories = [sanitize_text(subcategory, proper=True) for subcategory in subcategories]
 
-    # Prepare the data to be loaded
+    # Prepare the data to be inserted
     rows_to_insert = [
-        {
-            "id": str(uuid.uuid4()),
-            "prompt": None,
-            "category": category,
-            "subcategory": subcategory,
-            "button_name": None,
-            "timestamp": datetime.now().isoformat()
-        }
+        (str(uuid.uuid4()), None, category, subcategory, None, datetime.now())
         for subcategory in sanitized_subcategories
     ]
 
-    # Write the data to a JSON file
-    json_filename = "/tmp/subcategories_to_insert.json"
+    # SQL statement to insert data into the table
+    insert_query = """
+        INSERT INTO app.prompts (id, prompt, category, subcategory, button_name, timestamp)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
     try:
-        with open(json_filename, 'w') as json_file:
-            for row in rows_to_insert:
-                json.dump(row, json_file)
-                json_file.write('\n')  # Write each JSON object on a new line (NDJSON format)
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
 
-        # Define the BigQuery table
-        table_id = "les-socialites-chat-gpt.prompt_manager.prompts"
+        # Insert data into the table
+        cursor.executemany(insert_query, rows_to_insert)
+        connection.commit()
 
-        # Load the JSON file into BigQuery
-        job_config = bigquery.LoadJobConfig(
-            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-            schema=[
-                bigquery.SchemaField("id", "STRING"),
-                bigquery.SchemaField("prompt", "STRING"),
-                bigquery.SchemaField("category", "STRING"),
-                bigquery.SchemaField("subcategory", "STRING"),
-                bigquery.SchemaField("button_name", "STRING"),
-                bigquery.SchemaField("timestamp", "TIMESTAMP"),
-            ],
-        )
-
-        with open(json_filename, "rb") as source_file:
-            load_job = bigquery_client.load_table_from_file(source_file, table_id, job_config=job_config)
-
-        load_job.result()  # Wait for the job to complete
-
-        if load_job.errors:
-            return f"Encountered errors while loading data: {load_job.errors}", 500
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while adding subcategories: {e}", 500
 
     finally:
-        # Delete the temporary JSON file after the load is complete
-        if os.path.exists(json_filename):
-            os.remove(json_filename)
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-categories')
 
@@ -996,34 +1049,28 @@ def edit_category():
     # Sanitize the new category name for proper capitalization
     new_category_name = sanitize_text(new_category_name, proper=True)
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, updating the category name
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            CASE WHEN category = @old_category THEN @new_category_name ELSE category END as category,
-            subcategory,
-            instructions,
-            button_name,
-            timestamp
-        FROM {original_table_ref}
+    # Update the category name in the table
+    query = """
+        UPDATE app.prompts
+        SET category = %s
+        WHERE category = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("old_category", "STRING", old_category),
-            bigquery.ScalarQueryParameter("new_category_name", "STRING", new_category_name)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query, (new_category_name, old_category))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while editing the category: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-categories')
 
@@ -1038,42 +1085,31 @@ def edit_subcategory():
     if not category or not old_subcategory or not new_subcategory_name:
         return "Category, old subcategory, and new subcategory names cannot be empty", 400
 
-    # Sanitize the new category name for proper capitalization
+    # Sanitize the new subcategory name for proper capitalization
     new_subcategory_name = sanitize_text(new_subcategory_name, proper=True)
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, updating the subcategory name
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            category,
-            CASE
-                WHEN category = @category AND subcategory = @old_subcategory
-                    THEN @new_subcategory_name
-                ELSE subcategory
-            END as subcategory,
-            instructions,
-            button_name,
-            timestamp
-        FROM {original_table_ref}
+    # Update the subcategory name in the table
+    query = """
+        UPDATE app.prompts
+        SET subcategory = %s
+        WHERE category = %s AND subcategory = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", category),
-            bigquery.ScalarQueryParameter("old_subcategory", "STRING", old_subcategory),
-            bigquery.ScalarQueryParameter("new_subcategory_name", "STRING", new_subcategory_name)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query, (new_subcategory_name, category, old_subcategory))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while editing the subcategory: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-categories')
 
@@ -1086,36 +1122,27 @@ def delete_category():
     if not category:
         return "Category name cannot be empty", 400
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, excluding the selected category
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            CASE
-                WHEN category = @category THEN NULL
-                ELSE category
-            END AS category,
-            subcategory,
-            instructions,
-            button_name,
-            timestamp
-        FROM {original_table_ref}
+    # Delete the selected category from the table
+    query = """
+        DELETE FROM app.prompts
+        WHERE category = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", category)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query, (category,))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while deleting the category: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-categories')
 
@@ -1129,37 +1156,31 @@ def delete_subcategory():
     if not category or not subcategory:
         return "Category and subcategory names cannot be empty", 400
 
-    # Step 1: Create a new table (temporary or with a new name) with updated data
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, setting the subcategory to NULL where it matches the category and subcategory
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            category,
-            CASE
-                WHEN category = @category AND subcategory = @subcategory THEN NULL
-                ELSE subcategory
-            END AS subcategory,
-            instructions,
-            button_name,
-            timestamp
-        FROM {original_table_ref}
+    # SQL query to update the table, setting the subcategory to NULL where it matches the category and subcategory
+    update_query = """
+        UPDATE app.prompts
+        SET subcategory = NULL
+        WHERE category = %s AND subcategory = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", category),
-            bigquery.ScalarQueryParameter("subcategory", "STRING", subcategory)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the update query
+        cursor.execute(update_query, (category, subcategory))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while deleting the subcategory: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/manage-categories')
 
@@ -1179,38 +1200,31 @@ def update_instructions():
     if not category or not new_instructions:
         return "Category and Instructions cannot be empty", 400
 
-    # Step 1: Create a new table (temporary or with a new name)
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_{table_id}"
-    original_table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-    # Step 2: Copy data to the new table, updating the instructions for the selected category
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT
-            id,
-            prompt,
-            category,
-            subcategory,
-            CASE
-                WHEN category = @category
-                    THEN @new_instructions
-                ELSE instructions
-            END AS instructions,
-            button_name,
-            timestamp
-        FROM {original_table_ref}
+    # SQL query to update the instructions for the selected category
+    update_query = """
+        UPDATE app.prompts
+        SET instructions = %s
+        WHERE category = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("category", "STRING", category),
-            bigquery.ScalarQueryParameter("new_instructions", "STRING", new_instructions)
-        ]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 3: Replace the original table with the new table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO {table_id}").result()
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the update query
+        cursor.execute(update_query, (new_instructions, category))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while updating instructions: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect('/')
 
@@ -1268,7 +1282,8 @@ def register():
         "imen@lessocialites.com",
         "wyzard.feedback@gmail.com",
         "felix@lessocialites.com",
-        "karen@lessocialites.com"
+        "karen@lessocialites.com",
+        "ari@lessocialites.com"
     ]
 
     if request.method == 'POST':
@@ -1283,34 +1298,40 @@ def register():
 
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
 
-        # Check if the user already exists
-        check_query = f"""
-            SELECT id
-            FROM `{project_id}.{dataset_id}.users`
-            WHERE email = @email
-            LIMIT 1
-        """
-        query_job = bigquery_client.query(check_query, job_config=bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("email", "STRING", email)]
-        ))
-        result = query_job.result()
+        try:
+            # Connect to the Postgres CloudSQL database
+            connection = get_connection()
+            cursor = connection.cursor()
 
-        if list(result):
-            flash("Email already exists.", "error")
-            return redirect(url_for('register'))
+            # Check if the user already exists
+            check_query = """
+                SELECT id FROM app.users WHERE email = %s LIMIT 1
+            """
+            cursor.execute(check_query, (email,))
+            result = cursor.fetchone()
 
-        # Insert new user into BigQuery
-        user_id = str(uuid.uuid4())
-        rows_to_insert = [
-            {
-                "id": user_id,
-                "email": email,
-                "password": hashed_password,
-                "business_name": sanitize_business(business_name),
-                "timestamp": datetime.now().isoformat()
-            }
-        ]
-        bigquery_client.insert_rows_json(f"{dataset_id}.users", rows_to_insert)
+            if result:
+                flash("Email already exists.", "error")
+                return redirect(url_for('register'))
+
+            # Insert new user into CloudSQL
+            user_id = str(uuid.uuid4())
+            insert_query = """
+                INSERT INTO app.users (id, email, password, business_name, timestamp)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_query, (user_id, email, hashed_password, sanitize_business(business_name), datetime.now()))
+            connection.commit()
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return f"An error occurred during registration: {e}", 500
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
 
         # Flash success message with a 'success' category
         flash("Registration successful! Please log in.", "success")
@@ -1325,33 +1346,43 @@ def login():
         email = request.form['email']
         password = request.form['password']
 
-        # Query BigQuery for the user
-        query = f"""
-            SELECT id, email, password, business_name
-            FROM `{project_id}.{dataset_id}.users`
-            WHERE email = @email
-            LIMIT 1
-        """
-        query_job = bigquery_client.query(query, job_config=bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("email", "STRING", email)]
-        ))
-        result = query_job.result()
+        try:
+            # Connect to the Postgres CloudSQL database
+            connection = get_connection()
+            cursor = connection.cursor()
 
-        if not result:
-            flash("Email or password is incorrect.")
-            return redirect(url_for('login'))
+            # Query CloudSQL for the user
+            query = """
+                SELECT id, email, password, business_name FROM app.users WHERE email = %s LIMIT 1
+            """
+            cursor.execute(query, (email,))
+            result = cursor.fetchone()
 
-        row = list(result)[0]
-        user = User(user_id=row.id, email=row.email, password=row.password, business_name=row.business_name)
+            if not result:
+                flash("Email or password is incorrect.")
+                return redirect(url_for('login'))
 
-        if check_password_hash(user.password, password):
-            login_user(user)
-            session['user_email'] = user.email  # Store the email in the session
-            session['business_name'] = user.business_name  # Store the business name in the session
-            return redirect(url_for('business_type'))
-        else:
-            flash("Email or password is incorrect.")
-            return redirect(url_for('login'))
+            user_id, user_email, user_password, user_business_name = result
+            user = User(user_id=user_id, email=user_email, password=user_password, business_name=user_business_name)
+
+            if check_password_hash(user.password, password):
+                login_user(user)
+                session['user_email'] = user.email  # Store the email in the session
+                session['business_name'] = user.business_name  # Store the business name in the session
+                return redirect(url_for('business_type'))
+            else:
+                flash("Email or password is incorrect.")
+                return redirect(url_for('login'))
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return f"An error occurred during login: {e}", 500
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
 
     return render_template('login.html')
 
@@ -1374,38 +1405,49 @@ def manage_knowledge_base():
     # Retrieve selected business name from query parameters for filtering
     selected_business_name = request.args.get('filter_business_name', '')
 
-    # Query to fetch knowledge instructions filtered by business name if selected
-    query = f"""
-        SELECT id, business_name, knowledge_instructions
-        FROM `{project_id}.{dataset_id}.knowledge_base`
-        WHERE (@business_name = '' OR business_name = @business_name)
-        ORDER BY timestamp DESC
-    """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("business_name", "STRING", selected_business_name)
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Query to fetch knowledge instructions filtered by business name if selected
+        query = """
+            SELECT id, business_name, knowledge_instructions
+            FROM app.knowledge_base
+            WHERE (%s = '' OR business_name = %s)
+            ORDER BY timestamp DESC
+        """
+        cursor.execute(query, (selected_business_name, selected_business_name))
+        knowledge_instructions = [
+            {"id": row[0], "business_name": row[1], "knowledge_instructions": row[2]}
+            for row in cursor.fetchall()
         ]
+
+        # Fetch distinct business names from CloudSQL for the dropdown
+        business_names_query = """
+            SELECT DISTINCT business_name
+            FROM app.knowledge_base
+            ORDER BY business_name
+        """
+        cursor.execute(business_names_query)
+        business_names = [row[0] for row in cursor.fetchall()]
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while managing the knowledge base: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return render_template(
+        'manage_knowledge_base.html',
+        knowledge_instructions=knowledge_instructions,
+        business_names=business_names,
+        selected_business_name=selected_business_name
     )
-    query_job = bigquery_client.query(query, job_config=query_config)
-    knowledge_instructions = [
-        {"id": row.id, "business_name": row.business_name, "knowledge_instructions": row.knowledge_instructions}
-        for row in query_job.result()
-    ]
-
-    # Fetch distinct business names from BigQuery for the dropdown
-    business_names_query = f"""
-        SELECT DISTINCT business_name
-        FROM `{project_id}.{dataset_id}.knowledge_base`
-        ORDER BY business_name
-    """
-    business_names_job = bigquery_client.query(business_names_query)
-    business_names = [row.business_name for row in business_names_job.result()]
-
-    return render_template('manage_knowledge_base.html',
-                           knowledge_instructions=knowledge_instructions,
-                           business_names=business_names,
-                           selected_business_name=selected_business_name)
-
 
 @app.route('/submit-knowledge', methods=['POST'])
 @login_required
@@ -1414,16 +1456,32 @@ def submit_knowledge():
     knowledge_instructions = request.form['knowledge_instructions']
     business_name = request.form['business_name']
 
-    # Insert into BigQuery
-    rows_to_insert = [
-        {
-            "id": str(uuid.uuid4()),
-            "business_name": business_name,
-            "knowledge_instructions": sanitize_text(knowledge_instructions),
-            "timestamp": datetime.now().isoformat()
-        }
-    ]
-    bigquery_client.insert_rows_json(f"{dataset_id}.knowledge_base", rows_to_insert)
+    # Insert into CloudSQL
+    insert_query = """
+        INSERT INTO app.knowledge_base (id, business_name, knowledge_instructions, timestamp)
+        VALUES (%s, %s, %s, %s)
+    """
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Generate a new UUID for the instruction
+        instruction_id = str(uuid.uuid4())
+
+        # Execute the insert query
+        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(knowledge_instructions), datetime.now()))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while submitting knowledge: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect(url_for('manage_knowledge_base', business_name=business_name))
 
@@ -1433,24 +1491,29 @@ def submit_knowledge():
 def delete_knowledge():
     instruction_id = request.form['id']
 
-    # Step 1: Create a new table excluding the deleted instruction
-    temp_table_ref = f"{project_id}.{dataset_id}.temp_knowledge_base"
-    original_table_ref = f"{project_id}.{dataset_id}.knowledge_base"
-
-    query = f"""
-        CREATE OR REPLACE TABLE {temp_table_ref} AS
-        SELECT * EXCEPT (id)
-        FROM {original_table_ref}
-        WHERE id != @id
+    # SQL query to delete the selected instruction from the table
+    delete_query = """
+        DELETE FROM app.knowledge_base WHERE id = %s
     """
-    query_config = bigquery.QueryJobConfig(
-        query_parameters=[bigquery.ScalarQueryParameter("id", "STRING", instruction_id)]
-    )
-    bigquery_client.query(query, job_config=query_config).result()
 
-    # Step 2: Replace the original table with the updated table
-    bigquery_client.delete_table(original_table_ref, not_found_ok=True)
-    bigquery_client.query(f"ALTER TABLE {temp_table_ref} RENAME TO knowledge_base").result()
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (instruction_id,))
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred while deleting knowledge: {e}", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect(url_for('manage_knowledge_base'))
 
@@ -1464,21 +1527,35 @@ def submit_knowledge_instructions():
         flash("Business name not found in session.")
         return redirect(url_for('business_type'))
 
-    # Insert into BigQuery
-    rows_to_insert = [
-        {
-            "id": str(uuid.uuid4()),
-            "business_name": business_name,
-            "knowledge_instructions": sanitize_text(knowledge_instructions),
-            "timestamp": datetime.now().isoformat()
-        }
-    ]
+    # SQL query to insert knowledge instructions into the table
+    insert_query = """
+        INSERT INTO app.knowledge_base (id, business_name, knowledge_instructions, timestamp)
+        VALUES (%s, %s, %s, %s)
+    """
 
     try:
-        bigquery_client.insert_rows_json(f"{dataset_id}.knowledge_base", rows_to_insert)
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Generate a new UUID for the instruction
+        instruction_id = str(uuid.uuid4())
+
+        # Execute the insert query
+        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(knowledge_instructions), datetime.now()))
+        connection.commit()
+
         flash("Knowledge instructions added successfully.")
+
     except Exception as e:
+        print(f"An error occurred: {e}")
         flash(f"An error occurred: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
     return redirect(url_for('prompt_categories'))
 
