@@ -14,6 +14,12 @@
             color: #e0e0e0;
         }
 
+        .logo {
+            display: block;
+            width: 300px; /* Made the logo bigger to match index.html */
+            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
+        }
+
         h1 {
             color: #ffffff;
             text-align: center;
@@ -118,6 +124,7 @@
 </head>
 <body>
     <div class="container">
+        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>Pick Your Task</h1>
         <div class="alert alert-info text-center" role="alert">
             If you're uploading a file, select the file you want to upload and then click on the task button.

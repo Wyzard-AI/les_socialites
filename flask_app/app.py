@@ -2,9 +2,12 @@
 import os
 import re
 import uuid
+import gspread
+import json
+from oauth2client.service_account import ServiceAccountCredentials
 from pypdf import PdfReader
 from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
-from google.cloud import bigquery, secretmanager
+from google.cloud import secretmanager
 from google.cloud.sql.connector import Connector, IPTypes
 from datetime import datetime, timedelta
 from openai import OpenAI
@@ -201,25 +204,6 @@ def extract_text_from_file(file):
             text += paragraph.text
     return text
 
-def sanitize_business(business_name):
-    # List of common stopwords to remove
-    stopwords = {"the", "and", "of", "for", "to", "a", "an"}
-
-    # Convert to lowercase to standardize
-    cleaned_name = business_name.lower()
-
-    # Remove punctuation and special characters except for spaces
-    cleaned_name = re.sub(r'[^\w\s]', '', cleaned_name)
-
-    # Split the name into words and filter out stopwords
-    words = cleaned_name.split()
-    filtered_words = [word for word in words if word not in stopwords]
-
-    # Rejoin the filtered words and remove extra whitespace
-    cleaned_name = ' '.join(filtered_words).strip()
-
-    return cleaned_name
-
 def get_categories_for_business_type(business_type):
     # Define a dictionary mapping business types to categories
     business_type_to_categories = {
@@ -265,30 +249,38 @@ def restricted_access(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+
+
+
 ### APP START ###
 app = Flask(__name__)
 
 app.secret_key = get_secret('les-socialites-app-secret-key')
+
+# Google Sheets setup
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
+creds_json = get_secret('business-ops-service-account-json-key')
+creds_dict = json.loads(creds_json)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
+client = gspread.authorize(creds)
+
+sheet = client.open("Wyzard Email Waitlist")
+waitlist_sheet = sheet.worksheet("waitlist")
 
 # Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-app.permanent_session_lifetime = timedelta(minutes=10)
+app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Set maximum file size to 16MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 connector = Connector()
-
-# postgres_config = {
-#     'user': 'postgres',
-#     'password': get_secret('cloudsql-postgres-user-password'),
-#     'dbname': 'wyzard_flask',
-#     'host': '/cloudsql/les-socialites-chat-gpt:us-east1:wyzard',
-#     'port': 5432  # Default PostgreSQL port
-# }
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
@@ -310,11 +302,12 @@ def make_session_permanent():
     session.permanent = True
 
 class User(UserMixin):
-    def __init__(self, user_id, email, password, business_name):
+    def __init__(self, user_id, email, password, business_name, business_type):
         self.id = user_id
         self.email = email
         self.password = password
         self.business_name = business_name
+        self.business_type = business_type
 
 def before_request():
     if not request.is_secure:
@@ -330,7 +323,7 @@ def load_user(user_id):
 
         # Query the app.users table to find the user by ID
         query = """
-            SELECT id, email, password, business_name
+            SELECT id, email, password, business_name, business_type
             FROM app.users
             WHERE id = %s
         """
@@ -341,7 +334,7 @@ def load_user(user_id):
             return None
 
         # Create and return a User object
-        return User(user_id=result[0], email=result[1], password=result[2], business_name=result[3])
+        return User(user_id=result[0], email=result[1], password=result[2], business_name=result[3], business_type=result[4])
 
     except Exception as e:
         print(f"Error: {e}")
@@ -409,6 +402,27 @@ def clear_conversation():
     # Clear the session data to start a new conversation
     session.pop('conversation', None)
     return redirect('/view-prompt')
+
+@app.route('/waitlist', methods=['GET'])
+def waitlist():
+    return render_template('waitlist.html')
+
+@app.route('/submit_waitlist', methods=['POST'])
+def submit_waitlist():
+    name = request.form['name']
+    email = request.form['email']
+    company_name = request.form['company_name']
+    number_of_employees = request.form['number_of_employees']
+
+    # Add data to the Google Sheet
+    try:
+        waitlist_sheet.append_row([name, email, company_name, number_of_employees])
+        flash("You've been added to the waitlist!", "success")
+    except Exception as e:
+        flash(f"An error occurred: {e}", "error")
+
+    return redirect(url_for('waitlist'))
+
 
 
 
@@ -673,7 +687,7 @@ def view_prompt():
         modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
         conversation.append({"role": "user", "content": modified_prompt})
 
-        # Get the response from OpenAI, passing the category and business_type
+        # Get the response from OpenAI, passing the category
         response = get_openai_assistant_response(conversation, openai_client, category=category)
         formatted_response = markdown(response)
 
@@ -1271,7 +1285,7 @@ def send_feedback():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # Define a list of whitelisted email addresses
+    # Define a list of whitelisted email addresses for registration
     whitelisted_emails = [
         "renaudbeaupre1991@gmail.com",
         "info@lessocialites.com",
@@ -1283,17 +1297,26 @@ def register():
         "wyzard.feedback@gmail.com",
         "felix@lessocialites.com",
         "karen@lessocialites.com",
-        "ari@lessocialites.com"
+        "ari@lessocialites.com",
+        "genevieve.beaudry@gmail.com"
     ]
 
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        business_name = request.form['business_name']
+        business_type = request.form['business_type']  # Capture the business_type from the form
+
+        # Extract business_name from the domain of the email
+        business_name = email.split('@')[1].split('.')[0]  # Extracts the part before the first dot
 
         # Check if the email is in the whitelist
         if email not in whitelisted_emails:
             flash("Your email is not authorized to register.", "error")
+            return redirect(url_for('register'))
+
+        # Check if the user is allowed to select "Les Socialites" as a business type based on email domain
+        if business_type == "Les Socialites" and "lessocialites.com" not in email:
+            flash("You are not authorized to select 'Les Socialites' as a business type.", "error")
             return redirect(url_for('register'))
 
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
@@ -1317,10 +1340,10 @@ def register():
             # Insert new user into CloudSQL
             user_id = str(uuid.uuid4())
             insert_query = """
-                INSERT INTO app.users (id, email, password, business_name, timestamp)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO app.users (id, email, password, business_name, business_type, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_query, (user_id, email, hashed_password, sanitize_business(business_name), datetime.now()))
+            cursor.execute(insert_query, (user_id, email, hashed_password, business_name, business_type, datetime.now()))
             connection.commit()
 
         except Exception as e:
@@ -1337,8 +1360,11 @@ def register():
         flash("Registration successful! Please log in.", "success")
         return redirect(url_for('login'))
 
-    return render_template('register.html')
+    # Check if the user should see "Les Socialites" as a business type option based on the domain
+    email = request.args.get('email', '')
+    is_socialites_whitelisted = "lessocialites.com" in email
 
+    return render_template('register.html', is_socialites_whitelisted=is_socialites_whitelisted)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1353,7 +1379,10 @@ def login():
 
             # Query CloudSQL for the user
             query = """
-                SELECT id, email, password, business_name FROM app.users WHERE email = %s LIMIT 1
+                SELECT id, email, password, business_name, business_type
+                FROM app.users
+                WHERE email = %s
+                LIMIT 1
             """
             cursor.execute(query, (email,))
             result = cursor.fetchone()
@@ -1362,14 +1391,21 @@ def login():
                 flash("Email or password is incorrect.")
                 return redirect(url_for('login'))
 
-            user_id, user_email, user_password, user_business_name = result
-            user = User(user_id=user_id, email=user_email, password=user_password, business_name=user_business_name)
+            user_id, user_email, user_password, user_business_name, user_business_type = result
+            user = User(user_id=user_id, email=user_email, password=user_password, business_name=user_business_name, business_type=user_business_type)
 
             if check_password_hash(user.password, password):
                 login_user(user)
                 session['user_email'] = user.email  # Store the email in the session
                 session['business_name'] = user.business_name  # Store the business name in the session
-                return redirect(url_for('business_type'))
+                session['business_type'] = user.business_type  # Store the business type in the session
+
+                # Redirect based on whether the business_type is set
+                if not user_business_type:
+                    return redirect(url_for('business_type'))  # Redirect to business_type page if not set
+                else:
+                    return redirect(url_for('prompt_categories'))  # Redirect to the desired default page (replace 'dashboard')
+
             else:
                 flash("Email or password is incorrect.")
                 return redirect(url_for('login'))
@@ -1522,10 +1558,26 @@ def delete_knowledge():
 def submit_knowledge_instructions():
     knowledge_instructions = request.form['knowledge_instructions']
     business_name = session.get('business_name')
+    file = request.files.get('file')
 
-    if not business_name:
-        flash("Business name not found in session.")
-        return redirect(url_for('business_type'))
+    # Initialize text variable
+    extracted_text = ""
+
+    # Process the file if uploaded
+    if file and file.filename != '':
+        try:
+            extracted_text = extract_text_from_file(file)
+        except Exception as e:
+            flash(f"An error occurred while processing the file: {e}")
+            return redirect(url_for('prompt_categories'))
+
+    # Combine manual instructions with extracted text
+    combined_instructions = f"{knowledge_instructions}\n{extracted_text}".strip()
+
+    # Ensure there is some instruction to insert
+    if not combined_instructions:
+        flash("No instructions provided.")
+        return redirect(url_for('prompt_categories'))
 
     # SQL query to insert knowledge instructions into the table
     insert_query = """
@@ -1542,7 +1594,7 @@ def submit_knowledge_instructions():
         instruction_id = str(uuid.uuid4())
 
         # Execute the insert query
-        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(knowledge_instructions), datetime.now()))
+        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(combined_instructions), datetime.now()))
         connection.commit()
 
         flash("Knowledge instructions added successfully.")
@@ -1558,57 +1610,6 @@ def submit_knowledge_instructions():
             connection.close()
 
     return redirect(url_for('prompt_categories'))
-
-
-
-
-
-### ROUTES FOR BUSINESS TYPE ###
-
-@app.route('/business-type', methods=['GET', 'POST'])
-@login_required
-def business_type():
-    if request.method == 'POST':
-        # Store the selected business type in the session
-        selected_type = request.form['business_type']
-        session['business_type'] = selected_type
-
-        # Redirect to the results page after selection
-        return redirect(url_for('prompt_categories'))
-
-    # Dictionary of business types with their corresponding emojis
-    business_types_with_emojis = {
-        "Agriculture": "🌾",
-        "Automotive": "🚗",
-        "Banking and Finance": "🏦",
-        "Construction": "🏗️",
-        "Creative Arts": "🎨",
-        "Energy": "⚡",
-        "Entertainment": "🎭",
-        "Environmental Services": "🌍",
-        "Fashion": "👗",
-        "Food and Beverage": "🍔",
-        "Insurance": "🛡️",
-        "Legal Services": "⚖️",
-        "Logistics and Supply Chain": "📦",
-        "Manufacturing": "🏭",
-        "Marketing and Advertising": "📢",
-        "Media and Publishing": "📰",
-        "Mining": "⛏️",
-        "Nonprofit": "🎗️",
-        "Real Estate": "🏠",
-        "Retail": "🛍️",
-        "Technology": "💻",
-        "Telecommunications": "📡",
-        "Tourism": "✈️",
-        "Transportation": "🚚",
-        "Utilities": "💡",
-        "Wellness and Fitness": "💪",
-        "Les Socialites": "👑"
-    }
-
-    # Render the business_type.html template, passing the dictionary of business types with emojis
-    return render_template('business_type.html', business_types_with_emojis=business_types_with_emojis)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

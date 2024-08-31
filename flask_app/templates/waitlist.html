@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Wyzard</title>
+    <title>Join the Waitlist - Wyzard</title>
     <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
     <style>
         body {
@@ -16,8 +16,8 @@
 
         .logo {
             display: block;
-            width: 300px; /* Adjust logo size */
-            margin: 0 auto 10px auto; /* Center the logo */
+            width: 300px;
+            margin: 0 auto 10px auto;
         }
 
         h1 {
@@ -77,68 +77,34 @@
         .btn-primary:hover {
             background-color: #6a1db7;
         }
-
-        .flash-message {
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .flash-message.success {
-            background-color: #39ff14; /* Neon green for success */
-            color: #121212;
-        }
-
-        .flash-message.error {
-            background-color: #ff4444; /* Red for errors */
-            color: #ffffff;
-        }
-
-        .register-link {
-            margin-top: 20px;
-            color: #8a2be2;
-            text-decoration: none;
-            font-size: 14px;
-        }
-
-        .register-link:hover {
-            color: #6a1db7;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash-message {{ category }}">
-                        <p>{{ message }}</p>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        <h1>Join the Waitlist</h1>
 
         <div class="card">
-            <form action="{{ url_for('login') }}" method="POST">
+            <form action="{{ url_for('submit_waitlist') }}" method="POST">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name:</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
                 <div class="mb-3">
                     <label for="email" class="form-label">Email:</label>
                     <input type="email" class="form-control" id="email" name="email" required>
                 </div>
                 <div class="mb-3">
-                    <label for="password" class="form-label">Password:</label>
-                    <input type="password" class="form-control" id="password" name="password" required>
+                    <label for="business_name" class="form-label">Business Name:</label>
+                    <input type="text" class="form-control" id="business_name" name="business_name" required>
                 </div>
-                <button type="submit" class="btn-primary">Login</button>
+                <div class="mb-3">
+                    <label for="number_of_employees" class="form-label">Number of Employees:</label>
+                    <input type="number" class="form-control" id="number_of_employees" name="number_of_employees" required>
+                </div>
+                <button type="submit" class="btn-primary">Join Waitlist</button>
             </form>
-            <div>
-                <a href="{{ url_for('register') }}" class="register-link">Don't have an account? Register here</a>
-            </div>
-            <div>
-                <a href="{{ url_for('waitlist') }}" class="register-link">Join the Waitlist</a>
-            </div>
         </div>
     </div>
 </body>

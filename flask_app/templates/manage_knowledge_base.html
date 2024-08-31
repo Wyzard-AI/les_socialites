@@ -14,6 +14,12 @@
             color: #e0e0e0; /* Light text */
         }
 
+        .logo {
+            display: block;
+            width: 300px; /* Made the logo bigger to match index.html */
+            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
+        }
+
         h1 {
             color: #ffffff;
             text-align: center;
@@ -104,6 +110,7 @@
 </head>
 <body>
     <div class="container">
+        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>Manage Knowledge Base</h1>
 
         <!-- Filter Form to Select Business Name -->
