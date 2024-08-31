@@ -17,6 +17,12 @@
             align-items: center;
         }
 
+        .logo {
+            display: block;
+            width: 300px; /* Made the logo bigger to match index.html */
+            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
+        }
+
         h1 {
             color: #ffffff;
             text-align: center;
@@ -79,6 +85,7 @@
 </head>
 <body>
     <div class="container my-5">
+        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1 class="text-center mb-4">Select Your Business Type</h1>
         <div class="row">
             <form method="POST" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">

@@ -18,6 +18,12 @@
             min-height: 100vh;
         }
 
+        .logo {
+            display: block;
+            width: 300px; /* Made the logo bigger to match index.html */
+            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
+        }
+
         .container {
             max-width: 800px;
             width: 100%;
@@ -134,6 +140,7 @@
 </head>
 <body>
     <div class="container">
+        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>🗂️ Manage Subcategories for {{ category }} 🗂️</h1>
 
         <!-- Add Subcategories Form -->

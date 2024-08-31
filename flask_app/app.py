@@ -2,9 +2,12 @@
 import os
 import re
 import uuid
+import gspread
+import json
+from oauth2client.service_account import ServiceAccountCredentials
 from pypdf import PdfReader
 from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
-from google.cloud import bigquery, secretmanager
+from google.cloud import secretmanager
 from google.cloud.sql.connector import Connector, IPTypes
 from datetime import datetime, timedelta
 from openai import OpenAI
@@ -265,30 +268,38 @@ def restricted_access(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+
+
+
 ### APP START ###
 app = Flask(__name__)
 
 app.secret_key = get_secret('les-socialites-app-secret-key')
+
+# Google Sheets setup
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
+creds_json = get_secret('business-ops-service-account-json-key')
+creds_dict = json.loads(creds_json)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
+client = gspread.authorize(creds)
+
+sheet = client.open("Wyzard Email Waitlist")
+waitlist_sheet = sheet.worksheet("waitlist")
 
 # Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-app.permanent_session_lifetime = timedelta(minutes=10)
+app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Set maximum file size to 16MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 connector = Connector()
-
-# postgres_config = {
-#     'user': 'postgres',
-#     'password': get_secret('cloudsql-postgres-user-password'),
-#     'dbname': 'wyzard_flask',
-#     'host': '/cloudsql/les-socialites-chat-gpt:us-east1:wyzard',
-#     'port': 5432  # Default PostgreSQL port
-# }
 
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
@@ -409,6 +420,27 @@ def clear_conversation():
     # Clear the session data to start a new conversation
     session.pop('conversation', None)
     return redirect('/view-prompt')
+
+@app.route('/waitlist', methods=['GET'])
+def waitlist():
+    return render_template('waitlist.html')
+
+@app.route('/submit_waitlist', methods=['POST'])
+def submit_waitlist():
+    name = request.form['name']
+    email = request.form['email']
+    business_name = request.form['business_name']
+    number_of_employees = request.form['number_of_employees']
+
+    # Add data to the Google Sheet
+    try:
+        waitlist_sheet.append_row([name, email, business_name, number_of_employees])
+        flash("You've been added to the waitlist!", "success")
+    except Exception as e:
+        flash(f"An error occurred: {e}", "error")
+
+    return redirect(url_for('waitlist'))
+
 
 
 
@@ -1338,7 +1370,6 @@ def register():
         return redirect(url_for('login'))
 
     return render_template('register.html')
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
