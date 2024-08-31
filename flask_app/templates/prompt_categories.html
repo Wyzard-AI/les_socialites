@@ -140,10 +140,14 @@
         <!-- New Section to Upload Instructions -->
         <div class="instruction-form">
             <h2>Upload Knowledge Instructions</h2>
-            <form action="/submit-knowledge-instructions" method="POST">
+            <form action="/submit-knowledge-instructions" method="POST" enctype="multipart/form-data">
                 <div>
                     <label for="knowledge_instructions" class="form-label">Enter Knowledge Instruction:</label>
-                    <textarea class="form-control" id="knowledge_instructions" name="knowledge_instructions" rows="4" required></textarea>
+                    <textarea class="form-control" id="knowledge_instructions" name="knowledge_instructions" rows="4"></textarea>
+                </div>
+                <div>
+                    <label for="file" class="form-label">Upload a Document (optional):</label>
+                    <input type="file" class="form-control" id="file" name="file" accept=".txt,.pdf,.docx">
                 </div>
                 <button type="submit" class="submit-button">Submit Instructions</button>
             </form>
