@@ -1,0 +1,86 @@
+<!-- top_menu.html -->
+<nav class="top-menu">
+    <ul>
+        <li class="dropdown">
+            <a href="#" class="dropbtn">Account</a>
+            <div class="dropdown-content">
+                <a href="/account-info">Account Info</a>
+                <a href="/request-help">Request Help</a>
+                <a href="/billing">Billing</a>
+                <a href="/suggest-feature">Suggest a Feature</a>
+                <a href="/report-bug">Report a Bug</a>
+                <a href="/logout">Logout</a>
+            </div>
+        </li>
+    </ul>
+</nav>
+
+<style>
+    .top-menu {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+        position: fixed;
+        top: 0;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        padding: 15px 0; /* Increased padding */
+        z-index: 1000;
+    }
+
+    .top-menu ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+    }
+
+    .top-menu li {
+        position: relative;
+        margin: 0 20px; /* Slightly increased margin for spacing */
+    }
+
+    .top-menu a {
+        color: #e0e0e0;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 16px; /* Increased font size */
+        padding: 10px; /* Added padding for better clickability */
+    }
+
+    .top-menu a:hover {
+        color: #8a2be2;
+    }
+
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #2c2c2c;
+        min-width: 180px; /* Slightly wider for better fit */
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        z-index: 1;
+    }
+
+    .dropdown-content a {
+        color: #e0e0e0;
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+    }
+
+    .dropdown-content a:hover {
+        background-color: #333;
+    }
+
+    .dropdown:hover .dropdown-content {
+        display: block;
+    }
+
+    .dropbtn {
+        cursor: pointer;
+    }
+
+    body {
+        padding-top: 60px; /* Adjust padding to account for increased top menu height */
+    }
+</style>

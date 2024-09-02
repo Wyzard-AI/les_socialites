@@ -197,6 +197,9 @@
     </style>
 </head>
 <body>
+    {% include 'top_menu.html' %}
+    {% include 'left_menu.html' %}
+
     <div class="container">
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>ChatGPT Conversation</h1>
@@ -260,5 +263,7 @@
             <a href="/feedback">❓ Request Support</a>
         </div>
     </div>
+
+    {% include 'footer.html' %}
 </body>
 </html>

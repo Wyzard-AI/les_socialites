@@ -1422,6 +1422,44 @@ def login():
 
     return render_template('login.html')
 
+@app.route('/forgot_password')
+def forgot_password():
+    return render_template('forgot_password.html')
+
+@app.route('/forgot_password_submit', methods=['POST'])
+def forgot_password_submit():
+    email = request.form['email']
+
+    # SQL query to delete the user from the app.users table
+    delete_query = """
+        DELETE FROM app.users WHERE email = %s
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (email,))
+        connection.commit()
+
+        flash('Email deleted successfully. You can register a new account.', 'success')
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        flash(f'An error occurred while processing your request: {e}', 'error')
+        return redirect(url_for('forgot_password'))
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    # Redirect to the registration page after deleting the email
+    return redirect(url_for('register'))
+
 @app.route('/logout')
 @login_required
 def logout():
