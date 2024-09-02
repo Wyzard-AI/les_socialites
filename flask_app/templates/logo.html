@@ -1,0 +1,18 @@
+<!-- logo.html -->
+<div class="logo-container">
+    <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
+</div>
+
+<style>
+    .logo-container {
+        position: fixed;
+        top: 10px; /* Adjust as needed to position below the top menu */
+        left: 10px; /* Adjust to position the logo inside the left menu area */
+        z-index: 1001; /* Ensure it appears above other elements */
+    }
+
+    .logo {
+        width: 100px; /* Adjust the logo size */
+        height: auto; /* Maintain aspect ratio */
+    }
+</style>

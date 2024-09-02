@@ -118,7 +118,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
         # Default instructions
-        default_instructions = "You are a manager at an influencer marketing company that does business in Canada and the United States."
+        default_instructions = "There are no special instructions. Simply follow the instructions in the prompt."
 
         # Initialize the instructions variable
         instructions = ""
@@ -142,7 +142,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
                 knowledge_result = cursor.fetchone()
 
                 if knowledge_result and knowledge_result[0]:
-                    instructions += "Knowledge Base Instruction: " + knowledge_result[0] + " "
+                    instructions += "Knowledge Base Instructions: " + knowledge_result[0] + " "
 
             # Fetch category-specific instructions from Postgres
             if category:
@@ -156,7 +156,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
                 category_result = cursor.fetchone()
 
                 if category_result and category_result[0]:
-                    instructions += "Category-Specific Instruction: " + category_result[0] + " "
+                    instructions += "Category-Specific Instructions: " + category_result[0] + " "
 
         except Exception as e:
             print(f"Error: {e}")
@@ -168,14 +168,55 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
 
         # If no instructions were found, use the default instructions
         if not instructions:
-            instructions = "Default Instruction: " + default_instructions
+            instructions = "Default Instructions: " + default_instructions
         else:
             # Prepend context to the instructions
-            instructions = f"Here are the instructions: {instructions}"
+            instructions = f"""You're going to potentially receive multiple sets of instructions to help answer the prompt.
+            Prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
+            These are the instructions... {instructions}"""
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
         conversation.insert(0, {"role": "system", "content": sanitized_instructions})
+
+    else:
+        if category:
+            # Initialize the instructions variable
+            instructions = ""
+
+            try:
+                # Establish the connection to the Postgres CloudSQL instance
+                connection = get_connection()
+                cursor = connection.cursor()
+
+                # Fetch category-specific instructions from Postgres
+                category_query = """
+                    SELECT instructions
+                    FROM app.prompts
+                    WHERE category = %s
+                    LIMIT 1
+                """
+                cursor.execute(category_query, (category,))
+                category_result = cursor.fetchone()
+
+                if category_result and category_result[0]:
+                    instructions += "Category-Specific Instruction: " + category_result[0] + " "
+
+            except Exception as e:
+                print(f"Error: {e}")
+            finally:
+                if cursor:
+                    cursor.close()
+                if connection:
+                    connection.close()
+
+            instructions = f"""You're going to receive multiple sets of instructions to help answer the prompt.
+                If available, prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
+                These are the instructions... {instructions}"""
+
+            # Sanitize the instructions and add them to the conversation
+            sanitized_instructions = sanitize_text(instructions)
+            conversation.insert(0, {"role": "system", "content": sanitized_instructions})
 
     # Call the OpenAI API with the entire conversation
     try:

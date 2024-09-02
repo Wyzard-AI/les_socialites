@@ -198,10 +198,10 @@
 </head>
 <body>
     {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
     <div class="container">
-        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>ChatGPT Conversation</h1>
 
         {% with messages = get_flashed_messages() %}
