@@ -12,16 +12,7 @@
             padding: 20px;
             background-color: #121212; /* Dark background */
             color: #e0e0e0; /* Light text */
-            display: flex;
-            justify-content: center; /* Center the content horizontally */
-            flex-direction: column; /* Stack elements vertically */
-            align-items: center; /* Center elements horizontally */
-        }
-
-        .logo {
-            display: block;
-            width: 300px; /* Made the logo bigger to match index.html */
-            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
+            display: block; /* Default display, does not need flex */
         }
 
         h1 {
@@ -33,33 +24,10 @@
         .container {
             max-width: 750px; /* Slightly increased width for the container */
             width: 100%;
+            margin: 0 auto; /* Center the container horizontally */
             padding: 0 20px; /* Padding on both sides */
             box-sizing: border-box; /* Ensure padding doesn't affect width */
             position: relative; /* Allow for absolute positioning of the buttons */
-        }
-
-        .bottom-buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #333;
-        }
-
-        .bottom-buttons a {
-            background-color: #8a2be2; /* Matte purple button color */
-            color: #ffffff;
-            padding: 10px 15px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 14px;
-            text-align: center;
-            flex: 1;
-            margin: 0 5px;
-        }
-
-        .bottom-buttons a:hover {
-            background-color: #6a1db7; /* Darker purple on hover */
         }
 
         .response-block {
@@ -100,6 +68,7 @@
             font-size: 14px;
             color: #ffcc00; /* Yellow color for the note */
             margin-bottom: 10px;
+            text-align: center; /* Center text within the note */
         }
 
         form {
@@ -182,13 +151,6 @@
         }
 
         @media (max-width: 768px) {
-            .bottom-buttons {
-                flex-direction: column;
-            }
-
-            .bottom-buttons a {
-                margin: 10px 0;
-            }
 
             .secondary-button, .send-button {
                 width: 100%; /* Full width on smaller screens */
@@ -256,12 +218,6 @@
         <a href="/prompt-menu" class="secondary-button">Pick a New Task</a>
         <a href="/prompt-categories" class="secondary-button">Pick a New AI Assistant</a>
         <a href="/" class="secondary-button">Home Page</a>
-
-        <div class="bottom-buttons">
-            <a href="/feedback">🐛 Report Bug</a>
-            <a href="/feedback">🗺️ Suggest Feature</a>
-            <a href="/feedback">❓ Request Support</a>
-        </div>
     </div>
 
     {% include 'footer.html' %}

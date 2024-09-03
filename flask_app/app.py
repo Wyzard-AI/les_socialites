@@ -200,7 +200,13 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
                 category_result = cursor.fetchone()
 
                 if category_result and category_result[0]:
-                    instructions += "Category-Specific Instruction: " + category_result[0] + " "
+                    instructions = f"""You're going to receive multiple sets of instructions to help answer the prompt.
+                        If available, prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
+                        These are the instructions... Category-Specific Instructions: {category_result[0]}"""
+
+                    # Sanitize the instructions and add them to the conversation
+                    sanitized_instructions = sanitize_text(instructions)
+                    conversation.insert(0, {"role": "system", "content": sanitized_instructions})
 
             except Exception as e:
                 print(f"Error: {e}")
@@ -209,14 +215,6 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
                     cursor.close()
                 if connection:
                     connection.close()
-
-            instructions = f"""You're going to receive multiple sets of instructions to help answer the prompt.
-                If available, prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
-                These are the instructions... {instructions}"""
-
-            # Sanitize the instructions and add them to the conversation
-            sanitized_instructions = sanitize_text(instructions)
-            conversation.insert(0, {"role": "system", "content": sanitized_instructions})
 
     # Call the OpenAI API with the entire conversation
     try:
@@ -308,8 +306,9 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 
 client = gspread.authorize(creds)
 
-sheet = client.open("Wyzard Email Waitlist")
+sheet = client.open("Wyzard Email List")
 waitlist_sheet = sheet.worksheet("waitlist")
+newsletter_sheet = sheet.worksheet("newsletter")
 
 # Flask-Login setup
 login_manager = LoginManager()
@@ -1504,7 +1503,17 @@ def forgot_password_submit():
 @app.route('/logout')
 @login_required
 def logout():
+    # Clear the Flask session to remove all session data
+    session.clear()
+
+    # Check if conversation data is stored in the session and clear it
+    if 'conversation' in session:
+        del session['conversation']
+
+    # Logout the user
     logout_user()
+
+    # Redirect to the login page
     return redirect(url_for('login'))
 
 
@@ -1689,6 +1698,29 @@ def submit_knowledge_instructions():
             connection.close()
 
     return redirect(url_for('prompt_categories'))
+
+
+
+
+
+### FOOTER ###
+
+@app.route('/faq')
+def faq():
+    return render_template('faq.html')
+
+@app.route('/submit_newsletter', methods=['POST'])
+def submit_newsletter():
+    email = request.form['email']
+
+    # Add data to the Google Sheet
+    try:
+        newsletter_sheet.append_row([email])
+        flash("You've been added to the newsletter!", "success")
+    except Exception as e:
+        flash(f"An error occurred: {e}", "error")
+
+    return redirect(url_for('waitlist'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

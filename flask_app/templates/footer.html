@@ -1,20 +1,79 @@
 <!-- footer.html -->
 <footer class="footer">
-    <p>&copy; 2024 Wyzard.io <span> | </span> <a href="/legal">Privacy Policy & Terms and Conditions</a></p>
+    <div class="footer-container">
+        <div class="footer-section">
+            <h4>Legal</h4>
+            <ul>
+                <li><a href="/legal">Privacy Policy</a></li>
+                <li><a href="/legal">Terms and Conditions</a></li>
+            </ul>
+        </div>
+        <div class="footer-section">
+            <h4>Quick Links</h4>
+            <ul>
+                <li><a href="/faq">FAQ</a></li>
+            </ul>
+        </div>
+        <div class="footer-section">
+            <h4>Contact Us</h4>
+            <p>Canada<br>774 Rue D'Aiguillon, Quebec, QC, G1R 1M8</p>
+        </div>
+        <div class="footer-section">
+            <h4>Follow Us</h4>
+            <a href="https://www.linkedin.com" target="_blank" class="social-icon">
+                <i class="fab fa-linkedin"></i>
+            </a>
+        </div>
+        <div class="footer-section newsletter-section">
+            <h4>Newsletter</h4>
+            <form id="newsletter-form" action="/submit_newsletter" method="POST" class="newsletter-form">
+                <input type="email" name="email" placeholder="Enter your email" required>
+                <button type="submit" class="btn-subscribe">Subscribe</button>
+            </form>
+            <p id="newsletter-message"></p> <!-- Element to display success/error messages -->
+        </div>
+    </div>
 </footer>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+    // AJAX form submission
+    $('#newsletter-form').on('submit', function(event) {
+        event.preventDefault(); // Prevent the default form submission
+
+        $.ajax({
+            url: '/submit_newsletter',
+            type: 'POST',
+            data: $(this).serialize(), // Serialize form data
+            success: function(response) {
+                // Show success message
+                $('#newsletter-message').text(response.message).css('color', 'green');
+            },
+            error: function(xhr) {
+                // Show error message
+                const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred.';
+                $('#newsletter-message').text(errorMessage).css('color', 'red');
+            }
+        });
+    });
+</script>
 
 <style>
     .footer {
-        background-color: #1e1e1e;
+        background-color: #121212;
         color: #e0e0e0;
         text-align: center;
-        padding: 5px; /* Reduced padding */
+        padding: 2px 5px; /* Further reduced padding */
         position: fixed;
         bottom: 0;
         width: 100%;
         z-index: 1000;
-        font-size: 13px; /* Smaller font size */
-        line-height: 1.2; /* Adjust line height to reduce thickness */
+        font-size: 12px; /* Slightly smaller font size */
+        line-height: 1.1; /* Reduced line height */
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
     }
 
     .footer a {
@@ -25,4 +84,92 @@
     .footer a:hover {
         color: #6a1db7;
     }
+
+    .footer-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: flex-start;
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .footer-section {
+        flex: 1;
+        margin: 2px; /* Further reduced margin */
+        text-align: left;
+        max-width: 200px;
+        min-width: 150px;
+    }
+
+    .footer-section h4 {
+        margin-bottom: 3px; /* Reduced margin */
+        font-size: 13px; /* Slightly smaller header font size */
+        color: #ffffff;
+        font-weight: bold;
+    }
+
+    .footer-section p, .footer-section ul li {
+        font-size: 11px; /* Slightly smaller text font size */
+        margin: 3px 0; /* Reduced margin */
+        color: #e0e0e0;
+    }
+
+    .footer-section ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .footer-section ul li {
+        margin: 3px 0; /* Reduced margin for list items */
+    }
+
+    .social-icon {
+        font-size: 18px; /* Reduced icon size */
+        color: #8a2be2;
+        text-decoration: none;
+        margin-right: 5px; /* Reduced margin */
+    }
+
+    .social-icon:hover {
+        color: #6a1db7;
+    }
+
+    .newsletter-section {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .newsletter-form {
+        display: flex;
+        gap: 3px; /* Reduced gap between input and button */
+    }
+
+    .newsletter-form input[type="email"] {
+        padding: 4px; /* Further reduced padding */
+        border: 1px solid #333;
+        border-radius: 4px;
+        background-color: #121212; /* Match background to footer */
+        color: #ffffff;
+        flex: 1;
+    }
+
+    .btn-subscribe {
+        background-color: #8a2be2;
+        color: #ffffff;
+        border: none;
+        padding: 4px 8px; /* Further reduced padding */
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px; /* Slightly smaller button font size */
+    }
+
+    .btn-subscribe:hover {
+        background-color: #6a1db7;
+    }
 </style>
+
+<!-- Include Font Awesome for social media icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">

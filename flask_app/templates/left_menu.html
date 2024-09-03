@@ -15,15 +15,15 @@
 <style>
     .left-menu {
         position: fixed;
-        left: -200px;
+        left: 0; /* Keep the menu always visible on the left */
         top: 50px; /* Align with top menu */
         width: 200px;
         height: 100%;
-        background-color: #1e1e1e;
+        background-color: #121212;
         overflow: hidden;
-        transition: left 0.3s;
         z-index: 999;
         color: #e0e0e0;
+        transition: none; /* Remove the transition effect */
     }
 
     .left-menu ul {
@@ -77,9 +77,5 @@
 
     .dropbtn {
         cursor: pointer;
-    }
-
-    body:hover .left-menu {
-        left: 0;
     }
 </style>
