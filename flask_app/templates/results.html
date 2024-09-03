@@ -10,6 +10,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            padding-bottom: 80px;
             background-color: #121212; /* Dark background */
             color: #e0e0e0; /* Light text */
             display: block; /* Default display, does not need flex */
@@ -66,12 +67,12 @@
 
         .note {
             font-size: 14px;
-            color: #ffcc00; /* Yellow color for the note */
+            color: #8a2be2;
             margin-bottom: 10px;
             text-align: center; /* Center text within the note */
         }
 
-        form {
+        .results-form {
             background-color: #1e1e1e; /* Darker background for the form */
             padding: 15px;
             border-radius: 8px;
@@ -202,7 +203,7 @@
             {% endif %}
         </div>
 
-        <form action="/view-prompt" method="POST" enctype="multipart/form-data">
+        <form class="results-form" action="/view-prompt" method="POST" enctype="multipart/form-data">
             <div>
                 <label for="prompt">Your Message:</label>
                 <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>

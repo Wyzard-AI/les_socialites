@@ -16,7 +16,7 @@
         </div>
         <div class="footer-section">
             <h4>Contact Us</h4>
-            <p>Canada<br>774 Rue D'Aiguillon, Quebec, QC, G1R 1M8</p>
+            <p class="contact-info">Canada<br>774 Rue D'Aiguillon, Quebec, QC, G1R 1M8</p>
         </div>
         <div class="footer-section">
             <h4>Follow Us</h4>
@@ -74,6 +74,7 @@
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
+        height: 75px; /* Set height to account for padding in other content */
     }
 
     .footer a {
@@ -113,7 +114,11 @@
     .footer-section p, .footer-section ul li {
         font-size: 11px; /* Slightly smaller text font size */
         margin: 3px 0; /* Reduced margin */
-        color: #e0e0e0;
+        color: #8a2be2;
+    }
+
+    .contact-info {
+        color: #8a2be2; /* Purple text for Contact Us section */
     }
 
     .footer-section ul {
@@ -140,6 +145,10 @@
         display: flex;
         flex-direction: column;
         align-items: flex-start;
+        background: none; /* Ensure no background */
+        border: none; /* Ensure no border */
+        padding: 0; /* Remove any padding */
+        margin: 0; /* Remove any margin */
     }
 
     .newsletter-form {
