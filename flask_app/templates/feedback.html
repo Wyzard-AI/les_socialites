@@ -10,6 +10,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            padding-bottom: 80px;
             background-color: #121212; /* Dark background */
             color: #e0e0e0; /* Light text */
             display: flex;
@@ -100,6 +101,10 @@
     </style>
 </head>
 <body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
     <div class="container">
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>Feedback</h1>
@@ -148,7 +153,7 @@
             </form>
         </div>
 
-        <a href="/results" class="secondary-button">Back to Results</a>
+        <a href="/results" class="secondary-button">Back to Conversation</a>
     </div>
 
     <!-- JavaScript to hide flash message after 5 seconds -->
@@ -160,5 +165,7 @@
             }
         }, 5000); // 5000ms = 5 seconds
     </script>
+
+    {% include 'footer.html' %}
 </body>
 </html>

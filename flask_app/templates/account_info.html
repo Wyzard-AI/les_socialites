@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Information</title>
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px; /* Adjust padding to avoid overlap with the footer */
+            padding-bottom: 80px;
+            background-color: #121212; /* Dark background */
+            color: #e0e0e0; /* Light text */
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1e1e1e; /* Darker grey for container */
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .account-info p {
+            font-size: 16px;
+            margin: 10px 0;
+            color: #8a2be2; /* Purple text */
+        }
+
+        .error {
+            color: #ff4444; /* Red color for error messages */
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
+    <div class="container">
+        <h1>Account Information</h1>
+
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% else %}
+            <div class="account-info">
+                <p><strong>Email:</strong> {{ email }}</p>
+                <p><strong>Business Name:</strong> {{ business_name }}</p>
+                <p><strong>Business Type:</strong> {{ business_type }}</p>
+            </div>
+        {% endif %}
+    </div>
+
+    {% include 'footer.html' %}
+</body>
+</html>

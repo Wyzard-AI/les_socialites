@@ -10,6 +10,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            padding-bottom: 80px;
             background-color: #121212;
             color: #e0e0e0;
             max-width: 800px;
@@ -39,10 +40,15 @@
 
         .section {
             margin-top: 20px;
+            margin-bottom: 90px;
         }
     </style>
 </head>
 <body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
     <h2>Privacy Policy</h2>
     <p>Effective Date: September 2nd, 2024</p>
     <div class="section">
@@ -138,5 +144,7 @@
         <p><strong>9. Contact Us</strong></p>
         <p>If you have any questions or concerns about these Terms, please contact us at <a href="mailto:info@lessocialites.com">info@lessocialites.com</a></p>
     </div>
+
+    {% include 'footer.html' %}
 </body>
 </html>

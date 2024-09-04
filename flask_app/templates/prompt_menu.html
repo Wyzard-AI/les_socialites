@@ -10,6 +10,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            padding-bottom: 80px;
             background-color: #121212;
             color: #e0e0e0;
         }
@@ -123,6 +124,10 @@
     </style>
 </head>
 <body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
     <div class="container">
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>Pick Your Task</h1>
@@ -156,5 +161,7 @@
             {% endfor %}
         </form>
     </div>
+
+    {% include 'footer.html' %}
 </body>
 </html>

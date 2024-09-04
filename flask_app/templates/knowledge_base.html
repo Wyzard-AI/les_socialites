@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base</title>
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px; /* Adjust padding to avoid overlap with the footer */
+            padding-bottom: 80px;
+            background-color: #121212; /* Dark background */
+            color: #e0e0e0; /* Light text */
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1e1e1e; /* Darker grey for container */
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        h1, h2 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: block;
+            color: #8a2be2; /* Purple text */
+        }
+
+        .form-control {
+            background-color: #2c2c2c;
+            color: #ffffff;
+            border: 1px solid #333;
+            width: 100%;
+            padding: 10px;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+
+        .submit-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            text-align: center;
+            background-color: #8a2be2; /* Matte purple button color */
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .submit-button:hover {
+            background-color: #6a1db7; /* Darker purple on hover */
+        }
+
+        .error, .success {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: #ff4444; /* Red color for error messages */
+        }
+
+        .success {
+            color: #39ff14; /* Green color for success messages */
+        }
+    </style>
+</head>
+<body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
+    <div class="container">
+        <h1>Knowledge Base</h1>
+        <div class="instruction-form">
+            <h2>Upload Knowledge Instructions</h2>
+            <form action="/submit-knowledge-instructions" method="POST" enctype="multipart/form-data">
+                <div>
+                    <label for="knowledge_instructions" class="form-label">Enter Knowledge Instruction:</label>
+                    <textarea class="form-control" id="knowledge_instructions" name="knowledge_instructions" rows="4"></textarea>
+                </div>
+                <div>
+                    <label for="file" class="form-label">Upload a Document (optional):</label>
+                    <input type="file" class="form-control" id="file" name="file" accept=".txt,.pdf,.docx">
+                </div>
+                <button type="submit" class="submit-button">Submit Instructions</button>
+            </form>
+            {% if success %}
+                <p class="success">{{ success }}</p>
+            {% endif %}
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% include 'footer.html' %}
+</body>
+</html>

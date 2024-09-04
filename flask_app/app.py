@@ -288,6 +288,8 @@ def restricted_access(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 
@@ -326,6 +328,8 @@ openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
 
 ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
+
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Flask-Mail configuration
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -719,7 +723,7 @@ def view_prompt():
         conversation = session.get('conversation', [])
 
         file = request.files.get('file')
-        if file and file.filename != '':
+        if file and file.filename != '' and allowed_file(file.filename):
             file_text = extract_text_from_file(file)
             prompt += "\n\n" + file_text
 
@@ -1346,8 +1350,14 @@ def register():
         password = request.form['password']
         business_type = request.form['business_type']  # Capture the business_type from the form
 
-        # Extract business_name from the domain of the email
-        business_name = email.split('@')[1].split('.')[0]  # Extracts the part before the first dot
+        personal_domains = {'gmail', 'hotmail', 'yahoo', 'outlook', 'icloud', 'aol', 'live', 'msn', 'me'}
+
+        domain = email.split('@')[1].split('.')[0]
+
+        if domain in personal_domains:
+            business_name = "personal_account"
+        else:
+            business_name = domain
 
         # Check if the email is in the whitelist
         if email not in whitelisted_emails:
@@ -1652,12 +1662,12 @@ def submit_knowledge_instructions():
     extracted_text = ""
 
     # Process the file if uploaded
-    if file and file.filename != '':
+    if file and file.filename != '' and allowed_file(file.filename):
         try:
             extracted_text = extract_text_from_file(file)
         except Exception as e:
             flash(f"An error occurred while processing the file: {e}")
-            return redirect(url_for('prompt_categories'))
+            return redirect(url_for('knowledge_base'))
 
     # Combine manual instructions with extracted text
     combined_instructions = f"{knowledge_instructions}\n{extracted_text}".strip()
@@ -1665,7 +1675,7 @@ def submit_knowledge_instructions():
     # Ensure there is some instruction to insert
     if not combined_instructions:
         flash("No instructions provided.")
-        return redirect(url_for('prompt_categories'))
+        return redirect(url_for('knowledge_base'))
 
     # SQL query to insert knowledge instructions into the table
     insert_query = """
@@ -1697,7 +1707,7 @@ def submit_knowledge_instructions():
         if connection:
             connection.close()
 
-    return redirect(url_for('prompt_categories'))
+    return redirect(url_for('knowledge_base'))
 
 
 
@@ -1722,5 +1732,68 @@ def submit_newsletter():
 
     return redirect(url_for('waitlist'))
 
+
+
+
+### ACCOUNT INFO ###
+
+@app.route('/account-info')
+@login_required
+def account_info():
+    # Retrieve the user_id from the session
+    user_email = session.get('user_email')  # Adjust based on how you store the user session data
+
+    try:
+        # Establish the connection to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Query to fetch the user's email, business_name, and business_type
+        query = """
+            SELECT email, business_name, business_type
+            FROM app.users
+            WHERE email = %s
+        """
+        cursor.execute(query, (user_email,))
+        user_data = cursor.fetchone()
+
+        # If user data is found, prepare it for display
+        if user_data:
+            email, business_name, business_type = user_data
+            return render_template('account_info.html', email=email, business_name=business_name, business_type=business_type)
+        else:
+            # Handle case where user data isn't found
+            return render_template('account_info.html', error="User data not found.")
+    except Exception as e:
+        print(f"Error querying the database: {e}")
+        return render_template('account_info.html', error="An error occurred while retrieving your account information.")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+@app.route('/legal')
+@login_required
+def legal():
+    return render_template('legal.html')
+
+@app.route('/knowledge-base')
+@login_required
+def knowledge_base():
+    return render_template('knowledge_base.html')
+
+@app.route('/brand-voice')
+@login_required
+def brand_voice():
+    return render_template('brand_voice.html')
+
+@app.route('/billing')
+@login_required
+def billing():
+    return render_template('billing.html')
+
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5003)
