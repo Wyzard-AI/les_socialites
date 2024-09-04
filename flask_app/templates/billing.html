@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing</title>
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px; /* Adjust padding to account for footer height */
+            padding-bottom: 80px;
+            background-color: #121212; /* Dark background */
+            color: #e0e0e0; /* Light text */
+        }
+        .placeholder-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh; /* Center content vertically */
+            text-align: center;
+            font-size: 24px; /* Font size for placeholder text */
+        }
+    </style>
+</head>
+<body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
+    <div class="placeholder-container">
+        Placeholder
+    </div>
+
+    {% include 'footer.html' %}
+</body>
+</html>

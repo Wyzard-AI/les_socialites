@@ -10,8 +10,12 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            padding-bottom: 80px;
             background-color: #121212; /* Dark background */
             color: #e0e0e0; /* Light text */
+            justify-content: center; /* Center the content horizontally */
+            flex-direction: column; /* Stack elements vertically */
+            align-items: center; /* Center elements horizontally */
         }
 
         .logo {
@@ -91,13 +95,19 @@
         select.form-control option:hover {
             background-color: #8a2be2; /* Matte purple for selected and hover state */
         }
+
+        .main-content {
+            padding-bottom: 80px; /* Adjust the padding as needed to accommodate the footer height */
+        }
+
     </style>
 </head>
 <body>
-    <div class="container my-5">
-        <!-- Logo centered with reduced spacing below -->
-        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
 
+    <div class="container my-5">
         <div class="row justify-content-center">
             <div class="col-md-12">
                 <!-- Option to Select from Prompt Categories -->
@@ -187,5 +197,7 @@
             </div>
         </div>
     </div>
+
+    {% include 'footer.html' %}
 </body>
 </html>

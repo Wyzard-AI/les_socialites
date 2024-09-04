@@ -118,7 +118,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
         # Default instructions
-        default_instructions = "You are a manager at an influencer marketing company that does business in Canada and the United States."
+        default_instructions = "There are no special instructions. Simply follow the instructions in the prompt."
 
         # Initialize the instructions variable
         instructions = ""
@@ -142,7 +142,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
                 knowledge_result = cursor.fetchone()
 
                 if knowledge_result and knowledge_result[0]:
-                    instructions += "Knowledge Base Instruction: " + knowledge_result[0] + " "
+                    instructions += "Knowledge Base Instructions: " + knowledge_result[0] + " "
 
             # Fetch category-specific instructions from Postgres
             if category:
@@ -156,7 +156,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
                 category_result = cursor.fetchone()
 
                 if category_result and category_result[0]:
-                    instructions += "Category-Specific Instruction: " + category_result[0] + " "
+                    instructions += "Category-Specific Instructions: " + category_result[0] + " "
 
         except Exception as e:
             print(f"Error: {e}")
@@ -168,14 +168,53 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
 
         # If no instructions were found, use the default instructions
         if not instructions:
-            instructions = "Default Instruction: " + default_instructions
+            instructions = "Default Instructions: " + default_instructions
         else:
             # Prepend context to the instructions
-            instructions = f"Here are the instructions: {instructions}"
+            instructions = f"""You're going to potentially receive multiple sets of instructions to help answer the prompt.
+            Prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
+            These are the instructions... {instructions}"""
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
         conversation.insert(0, {"role": "system", "content": sanitized_instructions})
+
+    else:
+        if category:
+            # Initialize the instructions variable
+            instructions = ""
+
+            try:
+                # Establish the connection to the Postgres CloudSQL instance
+                connection = get_connection()
+                cursor = connection.cursor()
+
+                # Fetch category-specific instructions from Postgres
+                category_query = """
+                    SELECT instructions
+                    FROM app.prompts
+                    WHERE category = %s
+                    LIMIT 1
+                """
+                cursor.execute(category_query, (category,))
+                category_result = cursor.fetchone()
+
+                if category_result and category_result[0]:
+                    instructions = f"""You're going to receive multiple sets of instructions to help answer the prompt.
+                        If available, prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
+                        These are the instructions... Category-Specific Instructions: {category_result[0]}"""
+
+                    # Sanitize the instructions and add them to the conversation
+                    sanitized_instructions = sanitize_text(instructions)
+                    conversation.insert(0, {"role": "system", "content": sanitized_instructions})
+
+            except Exception as e:
+                print(f"Error: {e}")
+            finally:
+                if cursor:
+                    cursor.close()
+                if connection:
+                    connection.close()
 
     # Call the OpenAI API with the entire conversation
     try:
@@ -249,6 +288,8 @@ def restricted_access(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 
@@ -267,8 +308,9 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 
 client = gspread.authorize(creds)
 
-sheet = client.open("Wyzard Email Waitlist")
+sheet = client.open("Wyzard Email List")
 waitlist_sheet = sheet.worksheet("waitlist")
+newsletter_sheet = sheet.worksheet("newsletter")
 
 # Flask-Login setup
 login_manager = LoginManager()
@@ -286,6 +328,8 @@ openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
 
 ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
+
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Flask-Mail configuration
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -679,7 +723,7 @@ def view_prompt():
         conversation = session.get('conversation', [])
 
         file = request.files.get('file')
-        if file and file.filename != '':
+        if file and file.filename != '' and allowed_file(file.filename):
             file_text = extract_text_from_file(file)
             prompt += "\n\n" + file_text
 
@@ -1306,8 +1350,14 @@ def register():
         password = request.form['password']
         business_type = request.form['business_type']  # Capture the business_type from the form
 
-        # Extract business_name from the domain of the email
-        business_name = email.split('@')[1].split('.')[0]  # Extracts the part before the first dot
+        personal_domains = {'gmail', 'hotmail', 'yahoo', 'outlook', 'icloud', 'aol', 'live', 'msn', 'me'}
+
+        domain = email.split('@')[1].split('.')[0]
+
+        if domain in personal_domains:
+            business_name = "personal_account"
+        else:
+            business_name = domain
 
         # Check if the email is in the whitelist
         if email not in whitelisted_emails:
@@ -1422,10 +1472,58 @@ def login():
 
     return render_template('login.html')
 
+@app.route('/forgot_password')
+def forgot_password():
+    return render_template('forgot_password.html')
+
+@app.route('/forgot_password_submit', methods=['POST'])
+def forgot_password_submit():
+    email = request.form['email']
+
+    # SQL query to delete the user from the app.users table
+    delete_query = """
+        DELETE FROM app.users WHERE email = %s
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (email,))
+        connection.commit()
+
+        flash('Email deleted successfully. You can register a new account.', 'success')
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        flash(f'An error occurred while processing your request: {e}', 'error')
+        return redirect(url_for('forgot_password'))
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    # Redirect to the registration page after deleting the email
+    return redirect(url_for('register'))
+
 @app.route('/logout')
 @login_required
 def logout():
+    # Clear the Flask session to remove all session data
+    session.clear()
+
+    # Check if conversation data is stored in the session and clear it
+    if 'conversation' in session:
+        del session['conversation']
+
+    # Logout the user
     logout_user()
+
+    # Redirect to the login page
     return redirect(url_for('login'))
 
 
@@ -1564,12 +1662,12 @@ def submit_knowledge_instructions():
     extracted_text = ""
 
     # Process the file if uploaded
-    if file and file.filename != '':
+    if file and file.filename != '' and allowed_file(file.filename):
         try:
             extracted_text = extract_text_from_file(file)
         except Exception as e:
             flash(f"An error occurred while processing the file: {e}")
-            return redirect(url_for('prompt_categories'))
+            return redirect(url_for('knowledge_base'))
 
     # Combine manual instructions with extracted text
     combined_instructions = f"{knowledge_instructions}\n{extracted_text}".strip()
@@ -1577,7 +1675,7 @@ def submit_knowledge_instructions():
     # Ensure there is some instruction to insert
     if not combined_instructions:
         flash("No instructions provided.")
-        return redirect(url_for('prompt_categories'))
+        return redirect(url_for('knowledge_base'))
 
     # SQL query to insert knowledge instructions into the table
     insert_query = """
@@ -1609,7 +1707,93 @@ def submit_knowledge_instructions():
         if connection:
             connection.close()
 
-    return redirect(url_for('prompt_categories'))
+    return redirect(url_for('knowledge_base'))
+
+
+
+
+
+### FOOTER ###
+
+@app.route('/faq')
+def faq():
+    return render_template('faq.html')
+
+@app.route('/submit_newsletter', methods=['POST'])
+def submit_newsletter():
+    email = request.form['email']
+
+    # Add data to the Google Sheet
+    try:
+        newsletter_sheet.append_row([email])
+        flash("You've been added to the newsletter!", "success")
+    except Exception as e:
+        flash(f"An error occurred: {e}", "error")
+
+    return redirect(url_for('waitlist'))
+
+
+
+
+### ACCOUNT INFO ###
+
+@app.route('/account-info')
+@login_required
+def account_info():
+    # Retrieve the user_id from the session
+    user_email = session.get('user_email')  # Adjust based on how you store the user session data
+
+    try:
+        # Establish the connection to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Query to fetch the user's email, business_name, and business_type
+        query = """
+            SELECT email, business_name, business_type
+            FROM app.users
+            WHERE email = %s
+        """
+        cursor.execute(query, (user_email,))
+        user_data = cursor.fetchone()
+
+        # If user data is found, prepare it for display
+        if user_data:
+            email, business_name, business_type = user_data
+            return render_template('account_info.html', email=email, business_name=business_name, business_type=business_type)
+        else:
+            # Handle case where user data isn't found
+            return render_template('account_info.html', error="User data not found.")
+    except Exception as e:
+        print(f"Error querying the database: {e}")
+        return render_template('account_info.html', error="An error occurred while retrieving your account information.")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+@app.route('/legal')
+@login_required
+def legal():
+    return render_template('legal.html')
+
+@app.route('/knowledge-base')
+@login_required
+def knowledge_base():
+    return render_template('knowledge_base.html')
+
+@app.route('/brand-voice')
+@login_required
+def brand_voice():
+    return render_template('brand_voice.html')
+
+@app.route('/billing')
+@login_required
+def billing():
+    return render_template('billing.html')
+
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5003)

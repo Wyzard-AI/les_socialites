@@ -16,8 +16,8 @@
 
         .logo {
             display: block;
-            width: 300px; /* Adjust logo size */
-            margin: 0 auto 10px auto; /* Center the logo */
+            width: 300px;
+            margin: 0 auto 10px auto;
         }
 
         h1 {
@@ -57,6 +57,7 @@
             border-radius: 4px;
             box-sizing: border-box;
             margin-bottom: 15px;
+            position: relative;
         }
 
         .btn-primary {
@@ -71,10 +72,29 @@
             display: inline-block;
             width: 100%;
             box-sizing: border-box;
-            margin-top: 15px;
+            margin-top: 20px; /* Increased spacing */
         }
 
         .btn-primary:hover {
+            background-color: #6a1db7;
+        }
+
+        .btn-waitlist {
+            background-color: #8a2be2;
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 20px; /* Increased spacing */
+        }
+
+        .btn-waitlist:hover {
             background-color: #6a1db7;
         }
 
@@ -86,26 +106,51 @@
         }
 
         .flash-message.success {
-            background-color: #39ff14; /* Neon green for success */
+            background-color: #39ff14;
             color: #121212;
         }
 
         .flash-message.error {
-            background-color: #ff4444; /* Red for errors */
+            background-color: #ff4444;
             color: #ffffff;
         }
 
-        .register-link {
+        .register-link, .forgot-link {
             margin-top: 20px;
             color: #8a2be2;
             text-decoration: none;
             font-size: 14px;
+            display: block;
+            margin-bottom: 10px; /* Increased spacing */
         }
 
-        .register-link:hover {
+        .register-link:hover, .forgot-link:hover {
             color: #6a1db7;
         }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .password-toggle-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%); /* Center vertically */
+            cursor: pointer;
+            color: #e0e0e0;
+            font-size: 18px; /* Adjust size for better visibility */
+        }
+
+        .password-toggle-icon::before {
+            content: '\f06e'; /* Font Awesome eye icon */
+            font-family: 'Font Awesome 5 Free';
+            font-weight: 900; /* Use the solid style */
+        }
     </style>
+
+    <!-- Link to Font Awesome for the eye icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
@@ -127,19 +172,34 @@
                     <label for="email" class="form-label">Email:</label>
                     <input type="email" class="form-control" id="email" name="email" required>
                 </div>
-                <div class="mb-3">
+                <div class="mb-3 password-toggle">
                     <label for="password" class="form-label">Password:</label>
                     <input type="password" class="form-control" id="password" name="password" required>
+                    <span class="password-toggle-icon" onclick="togglePassword('password')"></span>
                 </div>
                 <button type="submit" class="btn-primary">Login</button>
             </form>
             <div>
+                <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot Password?</a>
+            </div>
+            <div>
                 <a href="{{ url_for('register') }}" class="register-link">Don't have an account? Register here</a>
             </div>
             <div>
-                <a href="{{ url_for('waitlist') }}" class="register-link">Join the Waitlist</a>
+                <a href="{{ url_for('waitlist') }}" class="btn-waitlist">Join the Waitlist</a>
             </div>
         </div>
     </div>
+
+    <script>
+        function togglePassword(id) {
+            var input = document.getElementById(id);
+            if (input.type === "password") {
+                input.type = "text";
+            } else {
+                input.type = "password";
+            }
+        }
+    </script>
 </body>
 </html>
