@@ -1,28 +1,31 @@
 runtime: python310
 entrypoint: gunicorn -b :$PORT app:app
 
-instance_class: F2  # Lower cost instance
+instance_class: F2  # Lower cost instance, adjust as needed
 
 automatic_scaling:
   target_cpu_utilization: 0.75
   target_throughput_utilization: 0.85
-  max_instances: 2
+  max_instances: 5  # Increased to handle more traffic if needed
   min_instances: 1
   max_idle_instances: 1
   min_idle_instances: 0
-
-# basic_scaling:
-#   max_instances: 5  # Adjust based on expected traffic
-#   idle_timeout: 10m  # Instances shut down after being idle for 10 minutes
-
+  max_concurrent_requests: 80  # To handle more concurrent requests efficiently
 
 handlers:
+- url: /static
+  static_dir: static
+  http_headers:
+    Cache-Control: "public, max-age=300"  # Cache static files for 5 minutes
+
 - url: /.*
   secure: always
   script: auto
 
 env_variables:
   GAE_ENV: 'standard'
+  MAX_CONTENT_LENGTH: 16777216  # 16 MB
+  SEND_FILE_MAX_AGE_DEFAULT: 300  # Cache static files for 5 minutes
 
 health_check:
   enable_health_check: true
@@ -36,4 +39,4 @@ readiness_check:
   timeout_sec: 300
 
 beta_settings:
-    cloud_sql_instances: "les-socialites-chat-gpt:us-east1:wyzard"
+  cloud_sql_instances: "les-socialites-chat-gpt:us-east1:wyzard"

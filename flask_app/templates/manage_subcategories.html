@@ -10,18 +10,13 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            padding-bottom: 20px;
             background-color: #121212;
             color: #e0e0e0;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-        }
-
-        .logo {
-            display: block;
-            width: 300px; /* Made the logo bigger to match index.html */
-            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
         }
 
         .container {
@@ -139,8 +134,11 @@
     </style>
 </head>
 <body>
+    {% include 'top_menu.html' %}
+    {% include 'logo.html' %}
+    {% include 'left_menu.html' %}
+
     <div class="container">
-        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1>🗂️ Manage Subcategories for {{ category }} 🗂️</h1>
 
         <!-- Add Subcategories Form -->
@@ -188,5 +186,7 @@
             <a href="/manage-categories" class="btn-secondary">Back to Categories</a>
         </div>
     </div>
+
+    {% include 'footer.html' %}
 </body>
 </html>

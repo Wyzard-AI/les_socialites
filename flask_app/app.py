@@ -235,12 +235,10 @@ def extract_text_from_file(file):
         text = file.read().decode("utf-8")
     elif file_extension == ".pdf":
         reader = PdfReader(file)
-        for page in reader.pages:
-            text += page.extract_text()
+        text = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
     elif file_extension == ".docx":
         doc = Document(file)
-        for paragraph in doc.paragraphs:
-            text += paragraph.text
+        text = " ".join(paragraph.text for paragraph in doc.paragraphs)
     return text
 
 def get_categories_for_business_type(business_type):
@@ -321,6 +319,7 @@ app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Set maximum file size to 16MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 300
 
 connector = Connector()
 
@@ -1796,4 +1795,4 @@ def billing():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5003)
+    app.run(debug=True, port=5001)

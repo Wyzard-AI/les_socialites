@@ -10,15 +10,9 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            padding-bottom: 80px;
+            padding-bottom: 20px;
             background-color: #121212;
             color: #e0e0e0;
-        }
-
-        .logo {
-            display: block;
-            width: 300px; /* Made the logo bigger to match index.html */
-            margin: 0 auto 10px auto; /* Centered with reduced bottom margin */
         }
 
         h1 {
@@ -132,7 +126,6 @@
     {% include 'left_menu.html' %}
 
     <div class="container my-5">
-        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
         <h1 class="text-center mb-4">Pick Your AI Assistant</h1>
         <div class="row justify-content-center">
             {% for category, emoji in categories_with_emojis.items() %}
