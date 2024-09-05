@@ -15,60 +15,71 @@
 <style>
     .left-menu {
         position: fixed;
-        left: 0; /* Keep the menu always visible on the left */
-        top: 50px; /* Align with top menu */
-        width: 200px;
+        left: 0;
+        top: 50px;
+        width: 250px;
         height: 100%;
         background-color: #121212;
         overflow: hidden;
         z-index: 999;
         color: #e0e0e0;
-        transition: none; /* Remove the transition effect */
+        padding: 20px;
+        box-sizing: border-box;
     }
 
     .left-menu ul {
         list-style: none;
-        padding: 5px; /* Reduced padding */
+        padding: 0;
+        margin: 0;
     }
 
     .left-menu li {
         position: relative;
-        margin: 10px 0; /* Reduced margin */
+        margin: 15px 0;
     }
 
     .left-menu a {
         color: #e0e0e0;
         text-decoration: none;
         display: block;
-        padding: 8px; /* Reduced padding */
+        padding: 12px;
         border-radius: 4px;
-        font-weight: bold; /* Bold font */
+        font-weight: bold;
+        font-size: 18px;
+
+    }
+
+    .main-content {
+        flex: 1;
+        margin-left: 250px;
+        padding: 20px;
+        box-sizing: border-box;
     }
 
     .left-menu a:hover {
-        color: #8a2be2; /* Highlight text color on hover */
+        color: #8a2be2;
     }
 
     .dropdown-content {
         display: none;
         position: absolute;
         background-color: #2c2c2c;
-        min-width: 160px;
+        min-width: 200px;
         box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
         z-index: 1;
-        left: 0; /* Aligns dropdown directly below the button */
-        top: 100%; /* Position directly below "Settings" */
+        left: 0;
+        top: 100%;
     }
 
     .dropdown-content a {
         color: #e0e0e0;
-        padding: 10px 14px; /* Adjusted padding */
+        padding: 10px 14px;
         text-decoration: none;
         display: block;
     }
 
     .dropdown-content a:hover {
-        color: #8a2be2; /* Highlight text color on hover */
+        color: #8a2be2;
     }
 
     .dropdown:hover .dropdown-content {
@@ -77,5 +88,6 @@
 
     .dropbtn {
         cursor: pointer;
+        font-size: 18px;
     }
 </style>
