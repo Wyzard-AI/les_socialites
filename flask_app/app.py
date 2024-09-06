@@ -26,7 +26,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
-
+from custom_session import CloudSQLSessionInterface
 
 
 
@@ -63,7 +63,17 @@ def get_connection():
         ip_type=IPTypes.PUBLIC,  # or IPTypes.PRIVATE for private IP
     )
 
+def sanitize_content(content):
+    # Remove null bytes and ensure the string is UTF-8 encoded
+    if isinstance(content, bytes):
+        # Decode bytes, ignoring invalid sequences
+        content = content.decode('utf-8', errors='ignore')
+    # Remove null bytes if any still exist
+    content = content.replace('\x00', '')  # Removing null bytes
+    return content
+
 def save_conversation_to_db(user_id, session_id, role, content):
+    sanitize_content(content)
     try:
         connection = get_connection()
         cursor = connection.cursor()
@@ -141,13 +151,14 @@ def extract_text_from_file(file):
     elif file_extension == ".docx":
         doc = Document(file)
         text = " ".join(paragraph.text for paragraph in doc.paragraphs)
-    return text
+    return sanitize_content(text)
 
-def get_openai_assistant_response(openai_client, category=None):
+def get_openai_assistant_response(openai_client, conversation=None, category=None):
     user_id = current_user.id
     session_id = session.get('session_id')
 
-    conversation = load_conversation_from_db(user_id, session_id)
+    if conversation is None:
+        conversation = load_conversation_from_db(user_id, session_id)
 
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
@@ -333,11 +344,11 @@ login_manager.login_view = 'login'
 app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Using CloudSQL to manage server-side conversation storage and session management
-app.config['SESSION_TYPE'] = 'filesystem'
-Session(app)
+app.session_interface = CloudSQLSessionInterface()
+app.config['SESSION_COOKIE_NAME'] = 'session'
 
 # Set config for max size of document upload
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024
 # Set config for cache duration of static files
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 86400 # 1 day in seconds
 
@@ -373,6 +384,9 @@ def check_session_expiration():
         # Check the last accessed time from session
         last_accessed = session.get('last_accessed', datetime.now(timezone.utc))
 
+        if isinstance(last_accessed, str):
+            last_accessed = datetime.fromisoformat(last_accessed)
+
         # If they haven't made a request in > 30 mins then delete session data
         if datetime.now(timezone.utc) - last_accessed > app.permanent_session_lifetime:
 
@@ -402,7 +416,7 @@ def check_session_expiration():
             return redirect(url_for('login'))  # Redirect to a login or appropriate page
 
         # Update the last accessed time
-        session['last_accessed'] = datetime.datetime.now(timezone.utc)
+        session['last_accessed'] = datetime.now(timezone.utc)
 
 class User(UserMixin):
     def __init__(self, user_id, email, password, business_name, business_type):
@@ -474,11 +488,11 @@ def login():
 
             if check_password_hash(user.password, password):
                 login_user(user)
-                session['session_id'] = str(uuid.uuid4())
-                session['business_name'] = user.business_name  # Store the business name in the session
-                session['business_type'] = user.business_type  # Store the business type in the session
+                session['user_id'] = user.id
+                session['business_name'] = user.business_name
+                session['business_type'] = user.business_type
                 session['last_accessed'] = datetime.now(timezone.utc)
-                return redirect(url_for('prompt_categories'))  # Redirect to the desired default page (replace 'dashboard')
+                return redirect(url_for('prompt_categories'))  # Redirect to the desired default page
             else:
                 flash("Email or password is incorrect.")
                 return redirect(url_for('login'))
@@ -874,10 +888,8 @@ def view_prompt():
     # Save the user's prompt to the database
     save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
 
-    conversation = load_conversation_from_db(user_id, session_id)
-
     # Get the response from OpenAI, passing the category
-    response = get_openai_assistant_response(conversation, openai_client, category=category)
+    response = get_openai_assistant_response(openai_client, category=category)
     formatted_response = markdown(response)
 
     # Save the assistant's response to the database
@@ -1137,8 +1149,8 @@ def submit_prompt():
     # Save the user's prompt to the database
     save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
 
-    # Call the get_openai_assistant_response function to handle instructions
-    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
+    # Call the response function to handle instructions
+    response = get_openai_assistant_response(openai_client, conversation, category=sanitized_category)
     formatted_response = markdown(response)
 
     # Save the assistant's response to the database
@@ -1840,4 +1852,4 @@ def delete_knowledge():
     return redirect(url_for('manage_knowledge_base'))
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True, port=5001)
