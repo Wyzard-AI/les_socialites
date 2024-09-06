@@ -84,7 +84,7 @@ class CloudSQLSessionInterface(SessionInterface):
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE
                 SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
-            """, (session.sid, session.get('user_id'), session_data, datetime.now(), datetime.now()))
+            """, (session.sid, session.get('_user_id'), session_data, datetime.now(), datetime.now()))
             connection.commit()
         except Exception as e:
             print(f"Error saving session: {e}")

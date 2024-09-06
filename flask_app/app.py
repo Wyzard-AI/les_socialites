@@ -155,7 +155,7 @@ def extract_text_from_file(file):
 
 def get_openai_assistant_response(openai_client, conversation=None, category=None):
     user_id = current_user.id
-    session_id = session.get('session_id')
+    session_id = session.sid
 
     if conversation is None:
         conversation = load_conversation_from_db(user_id, session_id)
@@ -345,8 +345,9 @@ app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Using CloudSQL to manage server-side conversation storage and session management
 app.session_interface = CloudSQLSessionInterface()
-app.config['SESSION_COOKIE_NAME'] = 'session'
 
+# Set config for custom session cookie name
+app.config['SESSION_COOKIE_NAME'] = 'session'
 # Set config for max size of document upload
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024
 # Set config for cache duration of static files
@@ -391,13 +392,13 @@ def check_session_expiration():
         if datetime.now(timezone.utc) - last_accessed > app.permanent_session_lifetime:
 
             user_id = current_user.id
-            session_id = session.get('session_id')
+            session_id = session.sid
 
             session.clear()
 
+            connection = get_connection()
+            cursor = connection.cursor()
             try:
-                connection = get_connection()
-                cursor = connection.cursor()
                 delete_query = """
                     DELETE FROM app.conversations
                     WHERE user_id = %s AND session_id = %s
@@ -406,6 +407,17 @@ def check_session_expiration():
                 connection.commit()
             except Exception as e:
                 print(f"Error clearing conversation: {e}")
+
+            try:
+                delete_query = """
+                    DELETE FROM app.sessions
+                    WHERE session_id = %s
+                """
+                cursor.execute(delete_query, (session_id,))
+                connection.commit()
+            except Exception as e:
+                print(f"Error clearing conversation: {e}")
+
             finally:
                 if cursor:
                     cursor.close()
@@ -488,7 +500,6 @@ def login():
 
             if check_password_hash(user.password, password):
                 login_user(user)
-                session['user_id'] = user.id
                 session['business_name'] = user.business_name
                 session['business_type'] = user.business_type
                 session['last_accessed'] = datetime.now(timezone.utc)
@@ -603,7 +614,7 @@ def register():
 @login_required
 def clear_conversation():
     user_id = current_user.id
-    session_id = session.get('session_id')
+    session_id = session.sid
 
     try:
         connection = get_connection()
@@ -626,19 +637,19 @@ def clear_conversation():
 
     session.pop('conversation', None)
 
-    return redirect('/view-prompt')
+    return redirect('/results')
 
 @app.route('/logout')
 @login_required
 def logout():
     user_id = current_user.id
-    session_id = session.get('session_id')
+    session_id = session.sid
 
     session.clear()
 
+    connection = get_connection()
+    cursor = connection.cursor()
     try:
-        connection = get_connection()
-        cursor = connection.cursor()
         delete_query = """
             DELETE FROM app.conversations
             WHERE user_id = %s AND session_id = %s
@@ -647,6 +658,17 @@ def logout():
         connection.commit()
     except Exception as e:
         print(f"Error clearing conversation: {e}")
+
+    try:
+        delete_query = """
+            DELETE FROM app.sessions
+            WHERE session_id = %s
+        """
+        cursor.execute(delete_query, (session_id,))
+        connection.commit()
+    except Exception as e:
+        print(f"Error clearing conversation: {e}")
+
     finally:
         if cursor:
             cursor.close()
@@ -670,9 +692,13 @@ def robots_txt():
 @login_required
 def results():
     user_id = current_user.id
-    session_id = session.get('session_id')
+    session_id = session.sid
 
     conversation = load_conversation_from_db(user_id, session_id)
+
+    for message in conversation:
+        if message['role'] == 'assistant':
+            message['content'] = markdown(message['content'])
 
     business_type = session.get('business_type', 'No business type selected')
 
@@ -874,8 +900,7 @@ def view_prompt():
 
     # Generate or get session_id and user_id
     user_id = current_user.id
-    session_id = session.get('session_id', str(uuid.uuid4())) # Needed because of the clear-convo functionality
-    session['session_id'] = session_id
+    session_id = session.sid
 
     file = request.files.get('file')
     if file and file.filename != '' and allowed_file(file.filename):
@@ -896,6 +921,10 @@ def view_prompt():
     save_conversation_to_db(user_id, session_id, 'assistant', response)
 
     conversation = load_conversation_from_db(user_id, session_id)
+
+    for message in conversation:
+        if message['role'] == 'assistant':
+            message['content'] = markdown(message['content'])
 
     # Check if the user is an admin
     user_email = current_user.email
@@ -1065,6 +1094,14 @@ def submit_newsletter():
 
 
 
+
+
+
+
+
+
+
+
 ########## WYZARD MANAGEMENT FOR ADMINS ##########
 
 @app.route('/')
@@ -1140,7 +1177,7 @@ def submit_prompt():
 
     # Generate or get session_id and user_id
     user_id = current_user.id  # UUID of the current user
-    session_id = session.get('session_id')
+    session_id = session.sid
 
     # Prepare the conversation without adding instructions here
     modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
@@ -1158,6 +1195,10 @@ def submit_prompt():
 
     # Store the conversation in the session
     conversation = load_conversation_from_db(user_id, session_id)
+
+    for message in conversation:
+        if message['role'] == 'assistant':
+            message['content'] = markdown(message['content'])
 
     # Render the results.html template with the conversation details
     return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
