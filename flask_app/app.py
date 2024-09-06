@@ -1,25 +1,58 @@
 ### IMPORTS START ###
 import os
 import re
-import uuid
-import gspread
 import json
+import uuid
+
+from openai import OpenAI
+
+import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from pypdf import PdfReader
-from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
 from google.cloud import secretmanager
 from google.cloud.sql.connector import Connector, IPTypes
-from datetime import datetime, timedelta
-from openai import OpenAI
-from werkzeug.utils import secure_filename
+
+from datetime import datetime, timedelta, timezone
+
+from pypdf import PdfReader
 from docx import Document
 from markdown2 import markdown
+
+from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
 from flask_mail import Mail, Message
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_session import Session
+
+from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
+from custom_session import CloudSQLSessionInterface
+
+
+
 ### FUNCTIONS START ###
+def before_request():
+    if not request.is_secure:
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
+
+def restricted_access(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_email = current_user.email
+        if user_email not in ADMIN_EMAILS:
+            flash('Access denied. You do not have permission to access this page.')
+            return redirect(url_for('login'))  # Redirect to a safe page if access is denied
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_secret(secret_name):
+    secret_client = secretmanager.SecretManagerServiceClient()
+    secret_resource_name = f"projects/916481347801/secrets/{secret_name}/versions/1"
+    response = secret_client.access_secret_version(name=secret_resource_name)
+    secret_payload = response.payload.data.decode('UTF-8')
+    return secret_payload
+
 def get_connection():
     return connector.connect(
         "les-socialites-chat-gpt:us-east1:wyzard",  # Replace with your actual instance connection name
@@ -30,64 +63,51 @@ def get_connection():
         ip_type=IPTypes.PUBLIC,  # or IPTypes.PRIVATE for private IP
     )
 
-def get_secret(secret_name):
-    secret_client = secretmanager.SecretManagerServiceClient()
-    secret_resource_name = f"projects/916481347801/secrets/{secret_name}/versions/1"
-    response = secret_client.access_secret_version(name=secret_resource_name)
-    secret_payload = response.payload.data.decode('UTF-8')
-    return secret_payload
+def sanitize_content(content):
+    # Remove null bytes and ensure the string is UTF-8 encoded
+    if isinstance(content, bytes):
+        # Decode bytes, ignoring invalid sequences
+        content = content.decode('utf-8', errors='ignore')
+    # Remove null bytes if any still exist
+    content = content.replace('\x00', '')  # Removing null bytes
+    return content
 
-def fetch_prompts_from_postgres(category=None, subcategory=None):
-    # Create the base SQL query
-    query = f"""
-        SELECT id, prompt, category, subcategory, button_name
-        FROM app.prompts
-    """
-
-    query_params = []
-    conditions = []
-
-    # Add filtering conditions if category or subcategory are provided
-    if category:
-        conditions.append("category = %s")
-        query_params.append(category)
-
-    if subcategory:
-        conditions.append("subcategory = %s")
-        query_params.append(subcategory)
-
-    # Combine conditions with AND and add to the query
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-
-    query += " ORDER BY category, subcategory"
-
+def save_conversation_to_db(user_id, session_id, role, content):
+    sanitize_content(content)
     try:
-        # Establish the connection to the Postgres CloudSQL instance
         connection = get_connection()
         cursor = connection.cursor()
-
-        # Execute the query with parameters
-        cursor.execute(query, tuple(query_params))
-        results = cursor.fetchall()
-
-        # Process the results
-        prompts = []
-        for row in results:
-            prompts.append({
-                "id": row[0],
-                "prompt": row[1],
-                "category": row[2],
-                "subcategory": row[3],
-                "button_name": row[4]
-            })
-
-        return prompts
-
+        insert_query = """
+            INSERT INTO app.conversations (user_id, session_id, message_role, message_content)
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (user_id, session_id, role, content))
+        connection.commit()
     except Exception as e:
-        print(f"Error: {e}")
-        return []
+        print(f"Error saving conversation to DB: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
+def load_conversation_from_db(user_id, session_id):
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        select_query = """
+            SELECT message_role, message_content
+            FROM app.conversations
+            WHERE user_id = %s AND session_id = %s
+            ORDER BY created_at ASC
+        """
+        cursor.execute(select_query, (user_id, session_id))
+        rows = cursor.fetchall()
+        conversation = [{'role': row[0], 'content': row[1]} for row in rows]
+        return conversation
+    except Exception as e:
+        print(f"Error loading conversation from DB: {e}")
+        return []
     finally:
         if cursor:
             cursor.close()
@@ -97,6 +117,7 @@ def fetch_prompts_from_postgres(category=None, subcategory=None):
 def sanitize_text(text, proper=False):
     # Replace newline and carriage return characters with spaces
     text = text.replace('\n', ' ').replace('\r', ' ')
+
     # Replace multiple spaces with a single space
     text = re.sub(r'\s+', ' ', text).strip()
 
@@ -114,20 +135,41 @@ def sanitize_text(text, proper=False):
 
     return text
 
-def get_openai_assistant_response(conversation, openai_client, category=None):
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_text_from_file(file):
+    filename = secure_filename(file.filename)
+    file_extension = os.path.splitext(filename)[1].lower()
+    text = ""
+
+    if file_extension == ".txt":
+        text = file.read().decode("utf-8")
+    elif file_extension == ".pdf":
+        reader = PdfReader(file)
+        text = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
+    elif file_extension == ".docx":
+        doc = Document(file)
+        text = " ".join(paragraph.text for paragraph in doc.paragraphs)
+    return sanitize_content(text)
+
+def get_openai_assistant_response(openai_client, conversation=None, category=None):
+    user_id = current_user.id
+    session_id = session.sid
+
+    if conversation is None:
+        conversation = load_conversation_from_db(user_id, session_id)
+
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
-        # Default instructions
+
         default_instructions = "There are no special instructions. Simply follow the instructions in the prompt."
 
-        # Initialize the instructions variable
         instructions = ""
 
-        # Retrieve business_name from the session
         business_name = session.get('business_name')
 
         try:
-            # Establish the connection to the Postgres CloudSQL instance
             connection = get_connection()
             cursor = connection.cursor()
 
@@ -177,8 +219,9 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
-        conversation.insert(0, {"role": "system", "content": sanitized_instructions})
+        save_conversation_to_db(user_id, session_id, 'system', sanitized_instructions)
 
+    # Workflow for if the conversation already has instructions
     else:
         if category:
             # Initialize the instructions variable
@@ -206,7 +249,7 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
 
                     # Sanitize the instructions and add them to the conversation
                     sanitized_instructions = sanitize_text(instructions)
-                    conversation.insert(0, {"role": "system", "content": sanitized_instructions})
+                    save_conversation_to_db(user_id, session_id, 'system', sanitized_instructions)
 
             except Exception as e:
                 print(f"Error: {e}")
@@ -218,28 +261,18 @@ def get_openai_assistant_response(conversation, openai_client, category=None):
 
     # Call the OpenAI API with the entire conversation
     try:
+        conversation = load_conversation_from_db(user_id, session_id)
+
         response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=conversation
         )
-        return response.choices[0].message.content
+
+        assistant_response = response.choices[0].message.content
+
+        return assistant_response
     except Exception as e:
         return f"An error occurred: {e}"
-
-def extract_text_from_file(file):
-    filename = secure_filename(file.filename)
-    file_extension = os.path.splitext(filename)[1].lower()
-    text = ""
-
-    if file_extension == ".txt":
-        text = file.read().decode("utf-8")
-    elif file_extension == ".pdf":
-        reader = PdfReader(file)
-        text = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
-    elif file_extension == ".docx":
-        doc = Document(file)
-        text = " ".join(paragraph.text for paragraph in doc.paragraphs)
-    return text
 
 def get_categories_for_business_type(business_type):
     # Define a dictionary mapping business types to categories
@@ -274,28 +307,21 @@ def get_categories_for_business_type(business_type):
     }
 
     # Return the categories for the selected business type
-    return business_type_to_categories.get(business_type, [])
 
-def restricted_access(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user_email = session.get('user_email')
-        if user_email not in ADMIN_EMAILS:
-            flash('Access denied. You do not have permission to access this page.')
-            return redirect(url_for('results'))  # Redirect to a safe page if access is denied
-        return f(*args, **kwargs)
-    return decorated_function
+    business_type_categories = business_type_to_categories.get(business_type, [])
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return business_type_categories
+
 
 
 
 
 ### APP START ###
 app = Flask(__name__)
-
 app.secret_key = get_secret('les-socialites-app-secret-key')
+
+ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -317,18 +343,22 @@ login_manager.login_view = 'login'
 
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# Set maximum file size to 16MB
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 300
+# Using CloudSQL to manage server-side conversation storage and session management
+app.session_interface = CloudSQLSessionInterface()
 
+# Set config for custom session cookie name
+app.config['SESSION_COOKIE_NAME'] = 'session'
+# Set config for max size of document upload
+app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024
+# Set config for cache duration of static files
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 86400 # 1 day in seconds
+
+# CloudSQL Connection
 connector = Connector()
 
+# OpenAI API
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
-
-ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
-
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Flask-Mail configuration
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -337,12 +367,68 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'wyzard.feedback@gmail.com'
 app.config['MAIL_PASSWORD'] = get_secret('wyzard-email-app-password')
 app.config['MAIL_DEFAULT_SENDER'] = 'wyzard.feedback@gmail.com'
-
 mail = Mail(app)
 
+
+
+
+
+### LOGIN & SESSION MANAGEMENT ###
 @app.before_request
 def make_session_permanent():
     session.permanent = True
+
+@app.before_request
+def check_session_expiration():
+    # Check if the session has an expiration time (i.e. permanent)
+    if session.permanent:
+        # Check the last accessed time from session
+        last_accessed = session.get('last_accessed', datetime.now(timezone.utc))
+
+        if isinstance(last_accessed, str):
+            last_accessed = datetime.fromisoformat(last_accessed)
+
+        # If they haven't made a request in > 30 mins then delete session data
+        if datetime.now(timezone.utc) - last_accessed > app.permanent_session_lifetime:
+
+            user_id = current_user.id
+            session_id = session.sid
+
+            session.clear()
+
+            connection = get_connection()
+            cursor = connection.cursor()
+            try:
+                delete_query = """
+                    DELETE FROM app.conversations
+                    WHERE user_id = %s AND session_id = %s
+                """
+                cursor.execute(delete_query, (user_id, session_id))
+                connection.commit()
+            except Exception as e:
+                print(f"Error clearing conversation: {e}")
+
+            try:
+                delete_query = """
+                    DELETE FROM app.sessions
+                    WHERE session_id = %s
+                """
+                cursor.execute(delete_query, (session_id,))
+                connection.commit()
+            except Exception as e:
+                print(f"Error clearing conversation: {e}")
+
+            finally:
+                if cursor:
+                    cursor.close()
+                if connection:
+                    connection.close()
+
+            flash('Your session has expired due to inactivity.', 'info')
+            return redirect(url_for('login'))  # Redirect to a login or appropriate page
+
+        # Update the last accessed time
+        session['last_accessed'] = datetime.now(timezone.utc)
 
 class User(UserMixin):
     def __init__(self, user_id, email, password, business_name, business_type):
@@ -351,11 +437,6 @@ class User(UserMixin):
         self.password = password
         self.business_name = business_name
         self.business_type = business_type
-
-def before_request():
-    if not request.is_secure:
-        url = request.url.replace("http://", "https://", 1)
-        return redirect(url, code=301)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -389,89 +470,239 @@ def load_user(user_id):
         if connection:
             connection.close()
 
-@app.route('/robots.txt')
-@login_required
-@restricted_access
-def robots_txt():
-    return send_from_directory(app.static_folder, 'robots.txt')
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
 
-@app.route('/')
-@login_required
-@restricted_access  # This decorator restricts access based on email
-def index():
-    categories = ['Sales',
-                'Marketing',
-                'PR',
-                'Social Media',
-                'Web',
-                'Legal Advisor',
-                'Event Planning',
-                'Spellcheck/Translation',
-                'Multi-Channel Campaign',
-                'HR',
-                'SEO',
-                'Humanizer',
-                'eCommerce',
-                'Data Analyst',
-                'Project Manager',
-                'Customer Service',
-                'Business',
-                'Business Developer',
-                'Plagiarism Checker',
-                'Influencer Marketing',
-                'Administrative Assistant',
-                'Accounting',
-                'Design',
-                'Personal Assistant',
-                'Content Creation',
-                'Influencer']
-    return render_template('index.html', categories=categories)
+        try:
+            # Connect to the Postgres CloudSQL database
+            connection = get_connection()
+            cursor = connection.cursor()
 
-@app.route('/results')
-@login_required
-def results():
-    # Retrieve the conversation from the session
-    conversation = session.get('conversation', [])
+            # Query CloudSQL for the user
+            query = """
+                SELECT id, email, password, business_name, business_type
+                FROM app.users
+                WHERE email = %s
+                LIMIT 1
+            """
+            cursor.execute(query, (email,))
+            result = cursor.fetchone()
 
-    # Retrieve the selected business type from the session
-    business_type = session.get('business_type', 'No business type selected')
+            if not result:
+                flash("Email or password is incorrect.")
+                return redirect(url_for('login'))
 
-    # Pass both the conversation and the business type to the results.html template
-    return render_template('results.html', conversation=conversation, business_type=business_type)
+            user_id, user_email, user_password, user_business_name, user_business_type = result
+            user = User(user_id=user_id, email=user_email, password=user_password, business_name=user_business_name, business_type=user_business_type)
+
+            if check_password_hash(user.password, password):
+                login_user(user)
+                session['business_name'] = user.business_name
+                session['business_type'] = user.business_type
+                session['last_accessed'] = datetime.now(timezone.utc)
+                return redirect(url_for('prompt_categories'))  # Redirect to the desired default page
+            else:
+                flash("Email or password is incorrect.")
+                return redirect(url_for('login'))
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return f"An error occurred during login: {e}", 500
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    # Define a list of whitelisted email addresses for registration
+    whitelisted_emails = [
+        "renaudbeaupre1991@gmail.com",
+        "info@lessocialites.com",
+        "claudine@lessocialites.com",
+        "tay@lessocialites.com",
+        "jenny@lessocialites.com",
+        "ruth@lessocialites.com",
+        "imen@lessocialites.com",
+        "wyzard.feedback@gmail.com",
+        "felix@lessocialites.com",
+        "karen@lessocialites.com",
+        "ari@lessocialites.com",
+        "genevieve.beaudry@gmail.com",
+        "felix@lessocialites.com"
+    ]
+
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        business_type = request.form['business_type']  # Capture the business_type from the form
+
+        personal_domains = {'gmail', 'hotmail', 'yahoo', 'outlook', 'icloud', 'aol', 'live', 'msn', 'me'}
+
+        domain = email.split('@')[1].split('.')[0]
+
+        if domain in personal_domains:
+            business_name = "personal_account"
+        else:
+            business_name = domain
+
+        # Check if the email is in the whitelist
+        if email not in whitelisted_emails:
+            flash("Your email is not authorized to register.", "error")
+            return redirect(url_for('register'))
+
+        # Check if the user is allowed to select "Les Socialites" as a business type based on email domain
+        if business_type == "Les Socialites" and "lessocialites.com" not in email:
+            flash("You are not authorized to select 'Les Socialites' as a business type.", "error")
+            return redirect(url_for('register'))
+
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+
+        try:
+            # Connect to the Postgres CloudSQL database
+            connection = get_connection()
+            cursor = connection.cursor()
+
+            # Check if the user already exists
+            check_query = """
+                SELECT id FROM app.users WHERE email = %s LIMIT 1
+            """
+            cursor.execute(check_query, (email,))
+            result = cursor.fetchone()
+
+            if result:
+                flash("Email already exists.", "error")
+                return redirect(url_for('register'))
+
+            # Insert new user into CloudSQL
+            user_id = str(uuid.uuid4())
+            insert_query = """
+                INSERT INTO app.users (id, email, password, business_name, business_type, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_query, (user_id, email, hashed_password, business_name, business_type, datetime.now()))
+            connection.commit()
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return f"An error occurred during registration: {e}", 500
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+        # Flash success message with a 'success' category
+        flash("Registration successful! Please log in.", "success")
+        return redirect(url_for('login'))
+
+    # Check if the user should see "Les Socialites" as a business type option based on the domain
+    email = request.args.get('email', '')
+    is_socialites_whitelisted = "lessocialites.com" in email
+
+    return render_template('register.html', is_socialites_whitelisted=is_socialites_whitelisted)
 
 @app.route('/clear-conversation')
 @login_required
 def clear_conversation():
-    # Clear the session data to start a new conversation
-    session.pop('conversation', None)
-    return redirect('/view-prompt')
+    user_id = current_user.id
+    session_id = session.sid
 
-@app.route('/waitlist', methods=['GET'])
-def waitlist():
-    return render_template('waitlist.html')
-
-@app.route('/submit_waitlist', methods=['POST'])
-def submit_waitlist():
-    name = request.form['name']
-    email = request.form['email']
-    company_name = request.form['company_name']
-    number_of_employees = request.form['number_of_employees']
-
-    # Add data to the Google Sheet
     try:
-        waitlist_sheet.append_row([name, email, company_name, number_of_employees])
-        flash("You've been added to the waitlist!", "success")
+        connection = get_connection()
+        cursor = connection.cursor()
+        delete_query = """
+            DELETE FROM app.conversations
+            WHERE user_id = %s AND session_id = %s
+        """
+        cursor.execute(delete_query, (user_id, session_id))
+        connection.commit()
+        flash('Conversation history cleared.')
     except Exception as e:
-        flash(f"An error occurred: {e}", "error")
+        print(f"Error clearing conversation: {e}")
+        flash('Failed to clear conversation history.')
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
-    return redirect(url_for('waitlist'))
+    session.pop('conversation', None)
+
+    return redirect('/results')
+
+@app.route('/logout')
+@login_required
+def logout():
+    user_id = current_user.id
+    session_id = session.sid
+
+    session.clear()
+
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        delete_query = """
+            DELETE FROM app.conversations
+            WHERE user_id = %s AND session_id = %s
+        """
+        cursor.execute(delete_query, (user_id, session_id))
+        connection.commit()
+    except Exception as e:
+        print(f"Error clearing conversation: {e}")
+
+    try:
+        delete_query = """
+            DELETE FROM app.sessions
+            WHERE session_id = %s
+        """
+        cursor.execute(delete_query, (session_id,))
+        connection.commit()
+    except Exception as e:
+        print(f"Error clearing conversation: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    logout_user()
+
+    return redirect(url_for('login'))
 
 
 
 
 
+### ROUTES PAGES ###
+@app.route('/robots.txt')
+def robots_txt():
+    return send_from_directory(app.static_folder, 'robots.txt')
 
-### ROUTES FOR PROMPTS ###
+@app.route('/results')
+@login_required
+def results():
+    user_id = current_user.id
+    session_id = session.sid
+
+    conversation = load_conversation_from_db(user_id, session_id)
+
+    for message in conversation:
+        if message['role'] == 'assistant':
+            message['content'] = markdown(message['content'])
+
+    business_type = session.get('business_type', 'No business type selected')
+
+    return render_template('results.html', conversation=conversation, business_type=business_type)
 
 @app.route('/prompt-menu')
 @login_required
@@ -538,6 +769,480 @@ def prompt_menu():
             cursor.close()
         if connection:
             connection.close()
+
+@app.route('/prompt-categories')
+@login_required
+def prompt_categories():
+    # Dictionary of categories with their corresponding emojis
+    categories_with_emojis = {
+        "Sales": "💰",
+        "Marketing": "📣",
+        "PR": "📰",
+        "Social Media": "❤️",
+        "Web": "🌐",
+        "Legal Advisor": "⚖️",
+        "Event Planning": "🎉",
+        "Spellcheck/Translation": "✍️",
+        "Multi-Channel Campaign": "💌",
+        "HR": "💼",
+        "SEO": "🔍",
+        "Humanizer": "🧠",
+        "eCommerce": "🛒",
+        "Data Analyst": "📊",
+        "Project Manager": "📋",
+        "Customer Service": "📞",
+        "Business Developer": "🤝",
+        "Plagiarism Checker": "✅",
+        "Influencer Marketing": "🤳",
+        "Administrative Assistant": "💻",
+        "Accounting": "📄",
+        "Design": "🎨",
+        "Personal Assistant": "🤖",
+        "Content Creation": "📸",
+        "Influencer": "🤩"
+    }
+
+    business_type = session.get('business_type', 'No business type selected')
+
+    # Get the categories for the selected business type
+    available_categories = get_categories_for_business_type(business_type)
+
+    # Filter the categories with emojis based on the available categories
+    categories_with_emojis_filtered = {
+        category: categories_with_emojis.get(category, '')
+        for category in available_categories
+        if category in categories_with_emojis
+    }
+
+    return render_template('prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
+
+@app.route('/account-info')
+@login_required
+def account_info():
+    # Retrieve the user_id from the session
+    user_email = current_user.email  # Adjust based on how you store the user session data
+
+    try:
+        # Establish the connection to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Query to fetch the user's email, business_name, and business_type
+        query = """
+            SELECT email, business_name, business_type
+            FROM app.users
+            WHERE email = %s
+        """
+        cursor.execute(query, (user_email,))
+        user_data = cursor.fetchone()
+
+        # If user data is found, prepare it for display
+        if user_data:
+            email, business_name, business_type = user_data
+            return render_template('account_info.html', email=email, business_name=business_name, business_type=business_type)
+        else:
+            # Handle case where user data isn't found
+            return render_template('account_info.html', error="User data not found.")
+    except Exception as e:
+        print(f"Error querying the database: {e}")
+        return render_template('account_info.html', error="An error occurred while retrieving your account information.")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+@app.route('/feedback')
+@login_required
+def feedback():
+    return render_template('feedback.html')
+
+@app.route('/forgot_password')
+def forgot_password():
+    return render_template('forgot_password.html')
+
+@app.route('/legal')
+@login_required
+def legal():
+    return render_template('legal.html')
+
+@app.route('/knowledge-base')
+@login_required
+def knowledge_base():
+    return render_template('knowledge_base.html')
+
+@app.route('/brand-voice')
+@login_required
+def brand_voice():
+    return render_template('brand_voice.html')
+
+@app.route('/billing')
+@login_required
+def billing():
+    return render_template('billing.html')
+
+@app.route('/faq')
+def faq():
+    return render_template('faq.html')
+
+
+
+
+
+### ROUTE REQUESTS ###
+@app.route('/view-prompt', methods=['POST'])
+@login_required
+def view_prompt():
+    # Get the prompt and category from the form
+    prompt = request.form['prompt']
+    category = request.form.get('category')
+
+    # Generate or get session_id and user_id
+    user_id = current_user.id
+    session_id = session.sid
+
+    file = request.files.get('file')
+    if file and file.filename != '' and allowed_file(file.filename):
+        file_text = extract_text_from_file(file)
+        prompt += "\n\n" + file_text
+
+    # Append the user's prompt (including file content if applicable) to the conversation
+    modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
+
+    # Save the user's prompt to the database
+    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
+
+    # Get the response from OpenAI, passing the category
+    response = get_openai_assistant_response(openai_client, category=category)
+    formatted_response = markdown(response)
+
+    # Save the assistant's response to the database
+    save_conversation_to_db(user_id, session_id, 'assistant', response)
+
+    conversation = load_conversation_from_db(user_id, session_id)
+
+    for message in conversation:
+        if message['role'] == 'assistant':
+            message['content'] = markdown(message['content'])
+
+    # Check if the user is an admin
+    user_email = current_user.email
+    is_admin = user_email in ADMIN_EMAILS  # Replace with actual admin emails
+
+    return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
+
+@app.route('/submit-knowledge-instructions', methods=['POST'])
+@login_required
+def submit_knowledge_instructions():
+    knowledge_instructions = request.form['knowledge_instructions']
+    business_name = session.get('business_name')
+    file = request.files.get('file')
+
+    # Initialize text variable
+    extracted_text = ""
+
+    # Process the file if uploaded
+    if file and file.filename != '' and allowed_file(file.filename):
+        try:
+            extracted_text = extract_text_from_file(file)
+        except Exception as e:
+            flash(f"An error occurred while processing the file: {e}")
+            return redirect(url_for('knowledge_base'))
+
+    # Combine manual instructions with extracted text
+    combined_instructions = f"{knowledge_instructions}\n{extracted_text}".strip()
+
+    # Ensure there is some instruction to insert
+    if not combined_instructions:
+        flash("No instructions provided.")
+        return redirect(url_for('knowledge_base'))
+
+    # SQL query to insert knowledge instructions into the table
+    insert_query = """
+        INSERT INTO app.knowledge_base (id, business_name, knowledge_instructions, timestamp)
+        VALUES (%s, %s, %s, %s)
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Generate a new UUID for the instruction
+        instruction_id = str(uuid.uuid4())
+
+        # Execute the insert query
+        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(combined_instructions), datetime.now()))
+        connection.commit()
+
+        flash("Knowledge instructions added successfully.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        flash(f"An error occurred: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return redirect(url_for('knowledge_base'))
+
+@app.route('/waitlist', methods=['GET'])
+def waitlist():
+    return render_template('waitlist.html')
+
+@app.route('/submit_waitlist', methods=['POST'])
+def submit_waitlist():
+    name = request.form['name']
+    email = request.form['email']
+    company_name = request.form['company_name']
+    number_of_employees = request.form['number_of_employees']
+
+    # Add data to the Google Sheet
+    try:
+        waitlist_sheet.append_row([name, email, company_name, number_of_employees])
+        flash("You've been added to the waitlist!", "success")
+    except Exception as e:
+        flash(f"An error occurred: {e}", "error")
+
+    return redirect(url_for('waitlist'))
+
+@app.route('/send-feedback', methods=['POST'])
+@login_required
+def send_feedback():
+    # Retrieve form data
+    message_content = request.form.get('message')
+    subject = request.form.get('subject')
+
+    # Validate form data
+    if not message_content or not subject:
+        flash("All fields are required.")
+        return redirect(url_for('feedback'))
+
+    # Send email
+    try:
+        msg = Message(subject=f"{subject}", recipients=["info@lessocialites.com"])
+        msg.body = message_content
+        mail.send(msg)
+        flash("Thank you for your feedback! Your message has been sent.")
+    except Exception as e:
+        flash(f"An error occurred while sending your message: {str(e)}")
+        return redirect(url_for('feedback'))
+
+    return redirect(url_for('feedback'))
+
+@app.route('/forgot_password_submit', methods=['POST'])
+def forgot_password_submit():
+    email = request.form['email']
+
+    # SQL query to delete the user from the app.users table
+    delete_query = """
+        DELETE FROM app.users WHERE email = %s
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (email,))
+        connection.commit()
+
+        flash('Email deleted successfully. You can register a new account.', 'success')
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        flash(f'An error occurred while processing your request: {e}', 'error')
+        return redirect(url_for('forgot_password'))
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    # Redirect to the registration page after deleting the email
+    return redirect(url_for('register'))
+
+@app.route('/submit_newsletter', methods=['POST'])
+def submit_newsletter():
+    email = request.form['email']
+
+    # Add data to the Google Sheet
+    try:
+        newsletter_sheet.append_row([email])
+        flash("You've been added to the newsletter!", "success")
+    except Exception as e:
+        flash(f"An error occurred: {e}", "error")
+
+    return redirect(url_for('waitlist'))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########## WYZARD MANAGEMENT FOR ADMINS ##########
+
+@app.route('/')
+@login_required
+@restricted_access
+def index():
+    categories = ['Sales', 'Marketing', 'PR', 'Social Media', 'Web', 'Legal Advisor', 'Event Planning',
+                'Spellcheck/Translation', 'Multi-Channel Campaign', 'HR', 'SEO', 'Humanizer',
+                'eCommerce', 'Data Analyst', 'Project Manager', 'Customer Service', 'Business',
+                'Business Developer', 'Plagiarism Checker', 'Influencer Marketing',
+                'Administrative Assistant', 'Accounting', 'Design', 'Personal Assistant',
+                'Content Creation', 'Influencer']
+    return render_template('index.html', categories=categories)
+
+@app.route('/submit-prompt', methods=['POST'])
+@login_required
+@restricted_access
+def submit_prompt():
+    prompt = request.form['prompt']
+    category = request.form['category']
+    subcategory = request.form.get('subcategory')
+    button_name = request.form.get('button_name')
+
+    if not prompt:
+        return "Prompt cannot be empty", 400
+    if not category:
+        return "Category cannot be empty", 400
+
+    sanitized_prompt = sanitize_text(prompt)
+    sanitized_category = sanitize_text(category, proper=True)
+    sanitized_subcategory = sanitize_text(subcategory, proper=True) if subcategory else None
+    sanitized_button_name = sanitize_text(button_name, proper=True) if button_name else None
+    prompt_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat()
+
+    # Define the SQL query for inserting the prompt data
+    insert_query = """
+        INSERT INTO app.prompts (id, prompt, category, subcategory, button_name, timestamp)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
+    # Data to be inserted
+    data_to_insert = (
+        prompt_id,
+        sanitized_prompt,
+        sanitized_category,
+        sanitized_subcategory,
+        sanitized_button_name,
+        timestamp
+    )
+
+    try:
+        # Connect to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the insert query
+        cursor.execute(insert_query, data_to_insert)
+
+        # Commit the transaction
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "An error occurred while inserting the prompt data.", 500
+
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    # Generate or get session_id and user_id
+    user_id = current_user.id  # UUID of the current user
+    session_id = session.sid
+
+    # Prepare the conversation without adding instructions here
+    modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
+    conversation = [{"role": "user", "content": modified_prompt}]
+
+    # Save the user's prompt to the database
+    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
+
+    # Call the response function to handle instructions
+    response = get_openai_assistant_response(openai_client, conversation, category=sanitized_category)
+    formatted_response = markdown(response)
+
+    # Save the assistant's response to the database
+    save_conversation_to_db(user_id, session_id, 'assistant', response)
+
+    # Store the conversation in the session
+    conversation = load_conversation_from_db(user_id, session_id)
+
+    for message in conversation:
+        if message['role'] == 'assistant':
+            message['content'] = markdown(message['content'])
+
+    # Render the results.html template with the conversation details
+    return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
+
+@app.route('/assign-button-name', methods=['POST'])
+@login_required
+@restricted_access
+def assign_button_name():
+    prompt_id = request.form['prompt_id']
+    button_name = request.form['button_name']
+
+    if not prompt_id or not button_name:
+        return "Prompt ID and button name cannot be empty", 400
+
+    # SQL query to update the button_name for the specified prompt_id
+    update_query = """
+        UPDATE app.prompts
+        SET button_name = %s
+        WHERE id = %s
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL instance
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the update query
+        cursor.execute(update_query, (button_name, prompt_id))
+
+        # Commit the transaction
+        connection.commit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "An error occurred while updating the button name.", 500
+
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return redirect('/delete-prompts')
 
 @app.route('/manage-prompts')
 @login_required
@@ -634,165 +1339,6 @@ def manage_prompts():
         if connection:
             connection.close()
 
-@app.route('/submit-prompt', methods=['POST'])
-@login_required
-@restricted_access
-def submit_prompt():
-    prompt = request.form['prompt']
-    category = request.form['category']
-    subcategory = request.form.get('subcategory')
-    button_name = request.form.get('button_name')
-
-    if not prompt:
-        return "Prompt cannot be empty", 400
-    if not category:
-        return "Category cannot be empty", 400
-
-    sanitized_prompt = sanitize_text(prompt)
-    sanitized_category = sanitize_text(category, proper=True)
-    sanitized_subcategory = sanitize_text(subcategory, proper=True) if subcategory else None
-    sanitized_button_name = sanitize_text(button_name, proper=True) if button_name else None
-    prompt_id = str(uuid.uuid4())
-    timestamp = datetime.now().isoformat()
-
-    # Define the SQL query for inserting the prompt data
-    insert_query = """
-        INSERT INTO app.prompts (id, prompt, category, subcategory, button_name, timestamp)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """
-
-    # Data to be inserted
-    data_to_insert = (
-        prompt_id,
-        sanitized_prompt,
-        sanitized_category,
-        sanitized_subcategory,
-        sanitized_button_name,
-        timestamp
-    )
-
-    try:
-        # Connect to the Postgres CloudSQL instance
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Execute the insert query
-        cursor.execute(insert_query, data_to_insert)
-
-        # Commit the transaction
-        connection.commit()
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return "An error occurred while inserting the prompt data.", 500
-
-    finally:
-        # Close the cursor and connection
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-    # Prepare the conversation without adding instructions here
-    modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
-    conversation = [{"role": "user", "content": modified_prompt}]
-
-    # Call the get_openai_assistant_response function to handle instructions
-    response = get_openai_assistant_response(conversation, openai_client, category=sanitized_category)
-    formatted_response = markdown(response)
-
-    # Append the assistant's response to the conversation
-    conversation.append({"role": "assistant", "content": formatted_response})
-
-    # Store the conversation in the session
-    session['conversation'] = conversation
-
-    # Render the results.html template with the conversation details
-    return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
-
-@app.route('/view-prompt', methods=['GET', 'POST'])
-@login_required
-def view_prompt():
-    if request.method == 'POST':
-        # Get the prompt, category, and business type from the form
-        prompt = request.form['prompt']
-        category = request.form.get('category')  # Assuming category is provided
-
-        # Get the previous conversation from the session
-        conversation = session.get('conversation', [])
-
-        file = request.files.get('file')
-        if file and file.filename != '' and allowed_file(file.filename):
-            file_text = extract_text_from_file(file)
-            prompt += "\n\n" + file_text
-
-        # Append the user's prompt (including file content if applicable) to the conversation
-        modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
-        conversation.append({"role": "user", "content": modified_prompt})
-
-        # Get the response from OpenAI, passing the category
-        response = get_openai_assistant_response(conversation, openai_client, category=category)
-        formatted_response = markdown(response)
-
-        # Append the assistant's response to the conversation
-        conversation.append({"role": "assistant", "content": formatted_response})
-
-        # Save the conversation to the session
-        session['conversation'] = conversation
-
-        # Check if the user is an admin
-        user_email = current_user.email
-        is_admin = user_email in ADMIN_EMAILS  # Replace with actual admin emails
-
-        return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
-
-    else:
-        # Clear the conversation if this is a GET request to start a new conversation
-        session.pop('conversation', None)
-        # Render results.html with an empty conversation and no prompt/response
-        return render_template('results.html', conversation=[], prompt='', response='')
-
-@app.route('/assign-button-name', methods=['POST'])
-@login_required
-@restricted_access
-def assign_button_name():
-    prompt_id = request.form['prompt_id']
-    button_name = request.form['button_name']
-
-    if not prompt_id or not button_name:
-        return "Prompt ID and button name cannot be empty", 400
-
-    # SQL query to update the button_name for the specified prompt_id
-    update_query = """
-        UPDATE app.prompts
-        SET button_name = %s
-        WHERE id = %s
-    """
-
-    try:
-        # Connect to the Postgres CloudSQL instance
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Execute the update query
-        cursor.execute(update_query, (button_name, prompt_id))
-
-        # Commit the transaction
-        connection.commit()
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return "An error occurred while updating the button name.", 500
-
-    finally:
-        # Close the cursor and connection
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-    return redirect('/delete-prompts')
-
 @app.route('/delete-prompt', methods=['POST'])
 @login_required
 @restricted_access
@@ -878,58 +1424,6 @@ def edit_prompt():
             connection.close()
 
     return redirect('/manage-prompts')
-
-
-
-
-
-### ROUTES FOR CATEGORIES ###
-
-@app.route('/prompt-categories')
-@login_required
-def prompt_categories():
-    # Dictionary of categories with their corresponding emojis
-    categories_with_emojis = {
-        "Sales": "💰",
-        "Marketing": "📣",
-        "PR": "📰",
-        "Social Media": "❤️",
-        "Web": "🌐",
-        "Legal Advisor": "⚖️",
-        "Event Planning": "🎉",
-        "Spellcheck/Translation": "✍️",
-        "Multi-Channel Campaign": "💌",
-        "HR": "💼",
-        "SEO": "🔍",
-        "Humanizer": "🧠",
-        "eCommerce": "🛒",
-        "Data Analyst": "📊",
-        "Project Manager": "📋",
-        "Customer Service": "📞",
-        "Business Developer": "🤝",
-        "Plagiarism Checker": "✅",
-        "Influencer Marketing": "🤳",
-        "Administrative Assistant": "💻",
-        "Accounting": "📄",
-        "Design": "🎨",
-        "Personal Assistant": "🤖",
-        "Content Creation": "📸",
-        "Influencer": "🤩"
-    }
-
-    business_type = session.get('business_type', 'No business type selected')
-
-    # Get the categories for the selected business type
-    available_categories = get_categories_for_business_type(business_type)
-
-    # Filter the categories with emojis based on the available categories
-    categories_with_emojis_filtered = {
-        category: categories_with_emojis.get(category, '')
-        for category in available_categories
-        if category in categories_with_emojis
-    }
-
-    return render_template('prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
 
 @app.route('/manage-categories')
 @login_required
@@ -1241,12 +1735,6 @@ def delete_subcategory():
 
     return redirect('/manage-categories')
 
-
-
-
-
-### ROUTES FOR INSTRUCTIONS ###
-
 @app.route('/update-instructions', methods=['POST'])
 @login_required
 @restricted_access
@@ -1284,253 +1772,6 @@ def update_instructions():
             connection.close()
 
     return redirect('/')
-
-
-
-
-
-### ROUTES FOR FEEDBACK/MAIL ###
-
-@app.route('/feedback')
-@login_required
-def feedback():
-    return render_template('feedback.html')
-
-@app.route('/send-feedback', methods=['POST'])
-@login_required
-def send_feedback():
-    # Retrieve form data
-    message_content = request.form.get('message')
-    subject = request.form.get('subject')
-
-    # Validate form data
-    if not message_content or not subject:
-        flash("All fields are required.")
-        return redirect(url_for('feedback'))
-
-    # Send email
-    try:
-        msg = Message(subject=f"{subject}", recipients=["info@lessocialites.com"])
-        msg.body = message_content
-        mail.send(msg)
-        flash("Thank you for your feedback! Your message has been sent.")
-    except Exception as e:
-        flash(f"An error occurred while sending your message: {str(e)}")
-        return redirect(url_for('feedback'))
-
-    return redirect(url_for('feedback'))
-
-
-
-
-
-### ROUTES FOR LOGIN/REGISTRATION ###
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    # Define a list of whitelisted email addresses for registration
-    whitelisted_emails = [
-        "renaudbeaupre1991@gmail.com",
-        "info@lessocialites.com",
-        "claudine@lessocialites.com",
-        "tay@lessocialites.com",
-        "jenny@lessocialites.com",
-        "ruth@lessocialites.com",
-        "imen@lessocialites.com",
-        "wyzard.feedback@gmail.com",
-        "felix@lessocialites.com",
-        "karen@lessocialites.com",
-        "ari@lessocialites.com",
-        "genevieve.beaudry@gmail.com",
-        "felix@lessocialites.com"
-    ]
-
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        business_type = request.form['business_type']  # Capture the business_type from the form
-
-        personal_domains = {'gmail', 'hotmail', 'yahoo', 'outlook', 'icloud', 'aol', 'live', 'msn', 'me'}
-
-        domain = email.split('@')[1].split('.')[0]
-
-        if domain in personal_domains:
-            business_name = "personal_account"
-        else:
-            business_name = domain
-
-        # Check if the email is in the whitelist
-        if email not in whitelisted_emails:
-            flash("Your email is not authorized to register.", "error")
-            return redirect(url_for('register'))
-
-        # Check if the user is allowed to select "Les Socialites" as a business type based on email domain
-        if business_type == "Les Socialites" and "lessocialites.com" not in email:
-            flash("You are not authorized to select 'Les Socialites' as a business type.", "error")
-            return redirect(url_for('register'))
-
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
-
-        try:
-            # Connect to the Postgres CloudSQL database
-            connection = get_connection()
-            cursor = connection.cursor()
-
-            # Check if the user already exists
-            check_query = """
-                SELECT id FROM app.users WHERE email = %s LIMIT 1
-            """
-            cursor.execute(check_query, (email,))
-            result = cursor.fetchone()
-
-            if result:
-                flash("Email already exists.", "error")
-                return redirect(url_for('register'))
-
-            # Insert new user into CloudSQL
-            user_id = str(uuid.uuid4())
-            insert_query = """
-                INSERT INTO app.users (id, email, password, business_name, business_type, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(insert_query, (user_id, email, hashed_password, business_name, business_type, datetime.now()))
-            connection.commit()
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return f"An error occurred during registration: {e}", 500
-
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                connection.close()
-
-        # Flash success message with a 'success' category
-        flash("Registration successful! Please log in.", "success")
-        return redirect(url_for('login'))
-
-    # Check if the user should see "Les Socialites" as a business type option based on the domain
-    email = request.args.get('email', '')
-    is_socialites_whitelisted = "lessocialites.com" in email
-
-    return render_template('register.html', is_socialites_whitelisted=is_socialites_whitelisted)
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-
-        try:
-            # Connect to the Postgres CloudSQL database
-            connection = get_connection()
-            cursor = connection.cursor()
-
-            # Query CloudSQL for the user
-            query = """
-                SELECT id, email, password, business_name, business_type
-                FROM app.users
-                WHERE email = %s
-                LIMIT 1
-            """
-            cursor.execute(query, (email,))
-            result = cursor.fetchone()
-
-            if not result:
-                flash("Email or password is incorrect.")
-                return redirect(url_for('login'))
-
-            user_id, user_email, user_password, user_business_name, user_business_type = result
-            user = User(user_id=user_id, email=user_email, password=user_password, business_name=user_business_name, business_type=user_business_type)
-
-            if check_password_hash(user.password, password):
-                login_user(user)
-                session['user_email'] = user.email  # Store the email in the session
-                session['business_name'] = user.business_name  # Store the business name in the session
-                session['business_type'] = user.business_type  # Store the business type in the session
-
-                # Redirect based on whether the business_type is set
-                if not user_business_type:
-                    return redirect(url_for('business_type'))  # Redirect to business_type page if not set
-                else:
-                    return redirect(url_for('prompt_categories'))  # Redirect to the desired default page (replace 'dashboard')
-
-            else:
-                flash("Email or password is incorrect.")
-                return redirect(url_for('login'))
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return f"An error occurred during login: {e}", 500
-
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                connection.close()
-
-    return render_template('login.html')
-
-@app.route('/forgot_password')
-def forgot_password():
-    return render_template('forgot_password.html')
-
-@app.route('/forgot_password_submit', methods=['POST'])
-def forgot_password_submit():
-    email = request.form['email']
-
-    # SQL query to delete the user from the app.users table
-    delete_query = """
-        DELETE FROM app.users WHERE email = %s
-    """
-
-    try:
-        # Connect to the Postgres CloudSQL database
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Execute the delete query
-        cursor.execute(delete_query, (email,))
-        connection.commit()
-
-        flash('Email deleted successfully. You can register a new account.', 'success')
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        flash(f'An error occurred while processing your request: {e}', 'error')
-        return redirect(url_for('forgot_password'))
-
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-    # Redirect to the registration page after deleting the email
-    return redirect(url_for('register'))
-
-@app.route('/logout')
-@login_required
-def logout():
-    # Clear the Flask session to remove all session data
-    session.clear()
-
-    # Check if conversation data is stored in the session and clear it
-    if 'conversation' in session:
-        del session['conversation']
-
-    # Logout the user
-    logout_user()
-
-    # Redirect to the login page
-    return redirect(url_for('login'))
-
-
-
-
-
-### ROUTES FOR KNOWLEDGE BASE ###
 
 @app.route('/manage-knowledge-base', methods=['GET', 'POST'])
 @login_required
@@ -1650,150 +1891,6 @@ def delete_knowledge():
             connection.close()
 
     return redirect(url_for('manage_knowledge_base'))
-
-@app.route('/submit-knowledge-instructions', methods=['POST'])
-@login_required
-def submit_knowledge_instructions():
-    knowledge_instructions = request.form['knowledge_instructions']
-    business_name = session.get('business_name')
-    file = request.files.get('file')
-
-    # Initialize text variable
-    extracted_text = ""
-
-    # Process the file if uploaded
-    if file and file.filename != '' and allowed_file(file.filename):
-        try:
-            extracted_text = extract_text_from_file(file)
-        except Exception as e:
-            flash(f"An error occurred while processing the file: {e}")
-            return redirect(url_for('knowledge_base'))
-
-    # Combine manual instructions with extracted text
-    combined_instructions = f"{knowledge_instructions}\n{extracted_text}".strip()
-
-    # Ensure there is some instruction to insert
-    if not combined_instructions:
-        flash("No instructions provided.")
-        return redirect(url_for('knowledge_base'))
-
-    # SQL query to insert knowledge instructions into the table
-    insert_query = """
-        INSERT INTO app.knowledge_base (id, business_name, knowledge_instructions, timestamp)
-        VALUES (%s, %s, %s, %s)
-    """
-
-    try:
-        # Connect to the Postgres CloudSQL database
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Generate a new UUID for the instruction
-        instruction_id = str(uuid.uuid4())
-
-        # Execute the insert query
-        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(combined_instructions), datetime.now()))
-        connection.commit()
-
-        flash("Knowledge instructions added successfully.")
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        flash(f"An error occurred: {e}")
-
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-    return redirect(url_for('knowledge_base'))
-
-
-
-
-
-### FOOTER ###
-
-@app.route('/faq')
-def faq():
-    return render_template('faq.html')
-
-@app.route('/submit_newsletter', methods=['POST'])
-def submit_newsletter():
-    email = request.form['email']
-
-    # Add data to the Google Sheet
-    try:
-        newsletter_sheet.append_row([email])
-        flash("You've been added to the newsletter!", "success")
-    except Exception as e:
-        flash(f"An error occurred: {e}", "error")
-
-    return redirect(url_for('waitlist'))
-
-
-
-
-### ACCOUNT INFO ###
-
-@app.route('/account-info')
-@login_required
-def account_info():
-    # Retrieve the user_id from the session
-    user_email = session.get('user_email')  # Adjust based on how you store the user session data
-
-    try:
-        # Establish the connection to the Postgres CloudSQL instance
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Query to fetch the user's email, business_name, and business_type
-        query = """
-            SELECT email, business_name, business_type
-            FROM app.users
-            WHERE email = %s
-        """
-        cursor.execute(query, (user_email,))
-        user_data = cursor.fetchone()
-
-        # If user data is found, prepare it for display
-        if user_data:
-            email, business_name, business_type = user_data
-            return render_template('account_info.html', email=email, business_name=business_name, business_type=business_type)
-        else:
-            # Handle case where user data isn't found
-            return render_template('account_info.html', error="User data not found.")
-    except Exception as e:
-        print(f"Error querying the database: {e}")
-        return render_template('account_info.html', error="An error occurred while retrieving your account information.")
-
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-@app.route('/legal')
-@login_required
-def legal():
-    return render_template('legal.html')
-
-@app.route('/knowledge-base')
-@login_required
-def knowledge_base():
-    return render_template('knowledge_base.html')
-
-@app.route('/brand-voice')
-@login_required
-def brand_voice():
-    return render_template('brand_voice.html')
-
-@app.route('/billing')
-@login_required
-def billing():
-    return render_template('billing.html')
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
