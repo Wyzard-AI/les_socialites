@@ -378,58 +378,6 @@ mail = Mail(app)
 def make_session_permanent():
     session.permanent = True
 
-@app.before_request
-def check_session_expiration():
-    # Check if the session has an expiration time (i.e. permanent)
-    if session.permanent:
-        # Check the last accessed time from session
-        last_accessed = session.get('last_accessed', datetime.now(timezone.utc))
-
-        if isinstance(last_accessed, str):
-            last_accessed = datetime.fromisoformat(last_accessed)
-
-        # If they haven't made a request in > 30 mins then delete session data
-        if datetime.now(timezone.utc) - last_accessed > app.permanent_session_lifetime:
-
-            user_id = current_user.id
-            session_id = session.sid
-
-            session.clear()
-
-            connection = get_connection()
-            cursor = connection.cursor()
-            try:
-                delete_query = """
-                    DELETE FROM app.conversations
-                    WHERE user_id = %s AND session_id = %s
-                """
-                cursor.execute(delete_query, (user_id, session_id))
-                connection.commit()
-            except Exception as e:
-                print(f"Error clearing conversation: {e}")
-
-            try:
-                delete_query = """
-                    DELETE FROM app.sessions
-                    WHERE session_id = %s
-                """
-                cursor.execute(delete_query, (session_id,))
-                connection.commit()
-            except Exception as e:
-                print(f"Error clearing conversation: {e}")
-
-            finally:
-                if cursor:
-                    cursor.close()
-                if connection:
-                    connection.close()
-
-            flash('Your session has expired due to inactivity.', 'info')
-            return redirect(url_for('login'))  # Redirect to a login or appropriate page
-
-        # Update the last accessed time
-        session['last_accessed'] = datetime.now(timezone.utc)
-
 class User(UserMixin):
     def __init__(self, user_id, email, password, business_name, business_type):
         self.id = user_id
@@ -502,7 +450,6 @@ def login():
                 login_user(user)
                 session['business_name'] = user.business_name
                 session['business_type'] = user.business_type
-                session['last_accessed'] = datetime.now(timezone.utc)
                 return redirect(url_for('prompt_categories'))  # Redirect to the desired default page
             else:
                 flash("Email or password is incorrect.")
@@ -650,24 +597,22 @@ def logout():
     connection = get_connection()
     cursor = connection.cursor()
     try:
-        delete_query = """
+        delete_conversations_query = """
             DELETE FROM app.conversations
             WHERE user_id = %s AND session_id = %s
         """
-        cursor.execute(delete_query, (user_id, session_id))
+        cursor.execute(delete_conversations_query, (user_id, session_id))
         connection.commit()
-    except Exception as e:
-        print(f"Error clearing conversation: {e}")
 
-    try:
-        delete_query = """
+        delete_sessions_query = """
             DELETE FROM app.sessions
             WHERE session_id = %s
         """
-        cursor.execute(delete_query, (session_id,))
+        cursor.execute(delete_sessions_query, (session_id,))
         connection.commit()
     except Exception as e:
         print(f"Error clearing conversation: {e}")
+        connection.rollback()
 
     finally:
         if cursor:

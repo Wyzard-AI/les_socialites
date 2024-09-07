@@ -80,11 +80,11 @@ class CloudSQLSessionInterface(SessionInterface):
         try:
             session_data = json.dumps(dict(session), cls=DateTimeUUIDEncoder)
             cursor.execute("""
-                INSERT INTO app.sessions (session_id, user_id, data, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO app.sessions (session_id, data, created_at, updated_at)
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE
                 SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
-            """, (session.sid, session.get('_user_id'), session_data, datetime.now(), datetime.now()))
+            """, (session.sid, session_data, datetime.now(timezone.utc), datetime.now(timezone.utc)))
             connection.commit()
         except Exception as e:
             print(f"Error saving session: {e}")
