@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pypdf import PdfReader
 from docx import Document
 from markdown2 import markdown
+from urllib.parse import urljoin, urlparse
 
 from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
 from flask_mail import Mail, Message
@@ -284,11 +285,11 @@ def summarize_scraped_text(text):
         model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that summarizes text."},
-            {"role": "user", "content": f"Summarize the following text for business purposes and translate it into English if it's a different language: {text}"}
+            {"role": "user", "content": f"Analyze the following text that was scraped from a business's website and summarize the business's goods and services in English: {text}"}
         ]
     )
 
-    summary = response.choices[0].message['content'].strip()
+    summary = response.choices[0].message.content
     return summary
 
 def save_summary_to_db(url, summary):
@@ -352,17 +353,45 @@ def get_categories_for_business_type(business_type):
 
     return business_type_categories
 
+def scrape_website(url, depth=1):
+    visited_urls = set()
+    scraped_text = []
 
-def scrape_website(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
+    def scrape_page(url, current_depth):
+        if current_depth > depth or url in visited_urls:
+            return
+        visited_urls.add(url)
 
-    # Extract text from paragraphs as an example
-    paragraphs = soup.find_all('p')
-    text = ' '.join(p.get_text() for p in paragraphs)
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Failed to fetch {url}: {e}")
+            return
 
-    # Optionally, apply additional cleaning or filtering to the text
-    return text
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Extract text from paragraphs
+        paragraphs = soup.find_all('p')
+        text = ' '.join(p.get_text() for p in paragraphs)
+        scraped_text.append(text)
+
+        # Find all links on the page
+        links = soup.find_all('a', href=True)
+        for link in links:
+            href = link['href']
+            # Construct a full URL
+            full_url = urljoin(url, href)
+            # Check if the link is part of the original domain
+            if urlparse(full_url).netloc == urlparse(url).netloc:
+                scrape_page(full_url, current_depth + 1)
+
+    # Start scraping from the initial URL
+    scrape_page(url, 1)
+
+    return ' '.join(scraped_text)
+
+
 
 
 
@@ -1005,18 +1034,21 @@ def add_link():
         url = request.form['url']
         try:
             # Scrape the website
-            scraped_text = scrape_website(url)
+            print('Initating scraping')
+            scraped_text = scrape_website(url, depth=2)
 
             # Summarize the scraped text using ChatGPT
+            print('Sending scraped text for summary')
             summary = summarize_scraped_text(scraped_text)
 
             # Save the summary to CloudSQL
+            print('Saving summary')
             save_summary_to_db(url, summary)
 
-            flash('Website summarized and saved successfully!', 'success')
+            print('Website summarized and saved successfully!', 'success')
             return redirect(url_for('knowledge_base'))
         except Exception as e:
-            flash(f'An error occurred: {e}', 'danger')
+            print(f'An error occurred: {e}')
             return redirect(url_for('knowledge_base'))
 
     return render_template('knowledge_base.html')
