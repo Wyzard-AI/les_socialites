@@ -3,6 +3,7 @@ import os
 import re
 import json
 import uuid
+import requests
 
 from openai import OpenAI
 
@@ -28,7 +29,7 @@ from functools import wraps
 
 from custom_session import CloudSQLSessionInterface
 
-
+from bs4 import BeautifulSoup
 
 ### FUNCTIONS START ###
 def before_request():
@@ -274,6 +275,45 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     except Exception as e:
         return f"An error occurred: {e}"
 
+def summarize_scraped_text(text):
+    # Ensure text isn't too long for the API
+    if len(text) > 4096:
+        text = text[:4096]  # Truncate text if needed
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that summarizes text."},
+            {"role": "user", "content": f"Summarize the following text for business purposes and translate it into English if it's a different language: {text}"}
+        ]
+    )
+
+    summary = response.choices[0].message['content'].strip()
+    return summary
+
+def save_summary_to_db(url, summary):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    id = str(uuid.uuid4())
+    business_name = session.get('business_name')
+
+    try:
+        insert_query = """
+            INSERT INTO app.summaries (id, business_name, url, summary, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (id, business_name, url, summary, datetime.now()))
+        connection.commit()
+    except Exception as e:
+        print(f"Error saving summary to DB: {e}")
+        raise e
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
 def get_categories_for_business_type(business_type):
     # Define a dictionary mapping business types to categories
     business_type_to_categories = {
@@ -313,6 +353,16 @@ def get_categories_for_business_type(business_type):
     return business_type_categories
 
 
+def scrape_website(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Extract text from paragraphs as an example
+    paragraphs = soup.find_all('p')
+    text = ' '.join(p.get_text() for p in paragraphs)
+
+    # Optionally, apply additional cleaning or filtering to the text
+    return text
 
 
 
@@ -320,7 +370,7 @@ def get_categories_for_business_type(business_type):
 app = Flask(__name__)
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
-ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
+ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com', 'wyzard.feedback@gmail.com']
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Google Sheets setup
@@ -496,7 +546,7 @@ def register():
         domain = email.split('@')[1].split('.')[0]
 
         if domain in personal_domains:
-            business_name = "personal_account"
+            business_name = f"personal_account: {email}"
         else:
             business_name = domain
 
@@ -659,7 +709,9 @@ def prompt_menu():
 
     # Get the categories for the selected business type
     categories = get_categories_for_business_type(business_type)
+    print(f"Categories for business type '{business_type}': {categories}")
 
+    categories_str = ', '.join(f"'{cat}'" for cat in categories)
     # Connect to the Postgres CloudSQL instance
     try:
         connection = get_connection()
@@ -676,15 +728,16 @@ def prompt_menu():
             cursor.execute(query, (category,))
         else:
             # If no category is specified or invalid, fetch all prompts in valid categories
-            query = """
+            query = f"""
                 SELECT category, subcategory, prompt, button_name
                 FROM app.prompts
-                WHERE category = ANY(%s)
+                WHERE category IN ({categories_str})
                 ORDER BY category, subcategory, prompt
             """
-            cursor.execute(query, (tuple(categories),))
+            cursor.execute(query)
 
         results = cursor.fetchall()
+        print(f"Fetched results: {results}")
 
         # Organize prompts by subcategory
         prompts_by_subcategory = {}
@@ -697,12 +750,21 @@ def prompt_menu():
                 'button_name': button_name
             })
 
+        print(f"Prompts by subcategory: {prompts_by_subcategory}")
+
         # Define the desired order of subcategories
         subcategory_order = ["Find", "Analyze", "Create", "Review"]
 
         # Sort the prompts by the desired subcategory order
-        sorted_prompts_by_subcategory = {subcategory: prompts_by_subcategory[subcategory] for subcategory in subcategory_order if subcategory in prompts_by_subcategory}
+        sorted_prompts_by_subcategory = {subcategory: prompts_by_subcategory[subcategory]
+                                 for subcategory in subcategory_order
+                                 if subcategory in prompts_by_subcategory}
 
+        for subcategory, prompts in prompts_by_subcategory.items():
+            if subcategory not in sorted_prompts_by_subcategory:
+                sorted_prompts_by_subcategory[subcategory] = prompts
+
+        print(f"Sorted prompts by subcategory: {sorted_prompts_by_subcategory}")
         return render_template('prompt_menu.html', category=category, prompts_by_subcategory=sorted_prompts_by_subcategory)
 
     except Exception as e:
@@ -814,11 +876,13 @@ def legal():
 
 @app.route('/knowledge-base')
 @login_required
+@restricted_access
 def knowledge_base():
     return render_template('knowledge_base.html')
 
 @app.route('/brand-voice')
 @login_required
+@restricted_access
 def brand_voice():
     return render_template('brand_voice.html')
 
@@ -934,6 +998,28 @@ def submit_knowledge_instructions():
             connection.close()
 
     return redirect(url_for('knowledge_base'))
+
+@app.route('/add-link', methods=['GET', 'POST'])
+def add_link():
+    if request.method == 'POST':
+        url = request.form['url']
+        try:
+            # Scrape the website
+            scraped_text = scrape_website(url)
+
+            # Summarize the scraped text using ChatGPT
+            summary = summarize_scraped_text(scraped_text)
+
+            # Save the summary to CloudSQL
+            save_summary_to_db(url, summary)
+
+            flash('Website summarized and saved successfully!', 'success')
+            return redirect(url_for('knowledge_base'))
+        except Exception as e:
+            flash(f'An error occurred: {e}', 'danger')
+            return redirect(url_for('knowledge_base'))
+
+    return render_template('knowledge_base.html')
 
 @app.route('/waitlist', methods=['GET'])
 def waitlist():
