@@ -8,11 +8,27 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px;
-            padding-bottom: 20px;
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
             background-color: #121212;
             color: #e0e0e0;
+        }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
         }
 
         h1 {
@@ -22,8 +38,10 @@
         }
 
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
+            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            margin-left: 250px;
+            margin-right: 250px;
+            padding: 20px;
         }
 
         .card {
@@ -35,7 +53,7 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             padding: 25px;
             text-align: center;
-            width: 30%; /* Make each card take up 30% of the row */
+            width: 30%;
             box-sizing: border-box;
             margin-right: 10px;
         }
@@ -54,7 +72,7 @@
             padding: 10px;
             border-radius: 4px;
             box-sizing: border-box;
-            font-size: 18px; /* Increased input text size by 15% */
+            font-size: 18px;
         }
 
         .form-label {
@@ -78,16 +96,16 @@
         }
 
         .btn-manage-subcategories {
-            background-color: #ff69b4; /* Pink complementary color */
+            background-color: #ff69b4;
         }
 
         .btn-edit-category {
-            background-color: #32cd32; /* Green complementary color */
-            margin-top: 30px; /* Increased space between Manage Subcategories and Edit Category */
+            background-color: #32cd32;
+            margin-top: 30px;
         }
 
         .btn-delete-category {
-            background-color: #ff4500; /* Orange complementary color */
+            background-color: #ff4500;
         }
 
         .btn:hover {
@@ -97,7 +115,7 @@
         .d-flex {
             display: flex;
             flex-wrap: wrap;
-            justify-content: space-between; /* Evenly distribute space between cards */
+            justify-content: space-between;
         }
 
         .btn-secondary {
@@ -118,20 +136,19 @@
             background-color: #6a1db7;
         }
 
-        /* New styles for Add Categories form */
         .add-categories-form {
             background-color: #1e1e1e;
             border: none;
             color: #e0e0e0;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            padding: 25px;
+            padding: 20px;
             margin-bottom: 40px;
             text-align: center;
         }
 
         .btn-add-categories {
-            background-color: #4caf50; /* Green for Add Categories button */
+            background-color: #4caf50;
         }
 
     </style>
@@ -141,50 +158,51 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container my-5">
-        <h1 class="text-center mb-4">📊 Manage Categories 📊</h1>
+    <div class="wrapper">
+        <div class="container my-5">
+            <h1 class="text-center mb-4">📊 Manage Categories 📊</h1>
 
-        <!-- Add Categories Form -->
-        <div class="add-categories-form">
-            <h5 class="card-title">Add New Categories</h5>
-            <form action="/add-categories" method="POST">
-                <label for="categories" class="form-label">Enter Categories (comma-separated):</label>
-                <input type="text" class="form-control" name="categories" id="categories" placeholder="e.g., Marketing, Sales, Customer Service" required>
-                <button type="submit" class="btn btn-add-categories">Add Categories</button>
-            </form>
-        </div>
+            <!-- Add Categories Form -->
+            <div class="add-categories-form">
+                <h5 class="card-title">Add New Categories</h5>
+                <form action="/add-categories" method="POST">
+                    <label for="categories" class="form-label">Enter Categories (comma-separated):</label>
+                    <input type="text" class="form-control" name="categories" id="categories" placeholder="e.g., Marketing, Sales, Customer Service" required>
+                    <button type="submit" class="btn btn-add-categories">Add Categories</button>
+                </form>
+            </div>
 
-        <div class="d-flex">
-            {% if categories %}
-                {% for category, subcategories in categories.items() %}
-                    <div class="card">
-                        <h5 class="card-title">{{ category }}</h5>
-                        <!-- Edit Category Form -->
-                        <form action="/edit-category" method="POST" class="mb-2">
-                            <input type="hidden" name="old_category" value="{{ category }}">
-                            <div class="mb-3">
-                                <label for="new_category_name" class="form-label">Edit Category Name:</label>
-                                <input type="text" class="form-control" name="new_category_name" value="{{ category }}" required>
-                            </div>
-                            <button type="submit" class="btn btn-edit-category">Edit Category</button>
-                        </form>
-                        <a href="/manage-subcategories?category={{ category }}" class="btn btn-manage-subcategories mb-3">Manage Subcategories</a>
-                        <!-- Delete Category Form -->
-                        <form action="/delete-category" method="POST">
-                            <input type="hidden" name="category" value="{{ category }}">
-                            <button type="submit" class="btn btn-delete-category">Delete Category</button>
-                        </form>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p class="text-center">No categories available.</p>
-            {% endif %}
+            <div class="d-flex">
+                {% if categories %}
+                    {% for category, subcategories in categories.items() %}
+                        <div class="card">
+                            <h5 class="card-title">{{ category }}</h5>
+                            <!-- Edit Category Form -->
+                            <form action="/edit-category" method="POST" class="mb-2">
+                                <input type="hidden" name="old_category" value="{{ category }}">
+                                <div class="mb-3">
+                                    <label for="new_category_name" class="form-label">Edit Category Name:</label>
+                                    <input type="text" class="form-control" name="new_category_name" value="{{ category }}" required>
+                                </div>
+                                <button type="submit" class="btn btn-edit-category">Edit Category</button>
+                            </form>
+                            <a href="/manage-subcategories?category={{ category }}" class="btn btn-manage-subcategories mb-3">Manage Subcategories</a>
+                            <!-- Delete Category Form -->
+                            <form action="/delete-category" method="POST">
+                                <input type="hidden" name="category" value="{{ category }}">
+                                <button type="submit" class="btn btn-delete-category">Delete Category</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center">No categories available.</p>
+                {% endif %}
+            </div>
+            <div class="text-center mt-4">
+                <a href="/" class="btn-secondary">Back to Home</a>
+            </div>
         </div>
-        <div class="text-center mt-4">
-            <a href="/" class="btn-secondary">Back to Home</a>
-        </div>
-    </div>
-
     {% include 'footer.html' %}
+    </div>
 </body>
 </html>

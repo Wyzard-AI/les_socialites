@@ -8,12 +8,27 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px;
-            padding-bottom: 20px;
-            background-color: #121212; /* Dark background */
-            color: #e0e0e0; /* Light text */
-            display: block; /* Default display, does not need flex */
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
         }
 
         h1 {
@@ -23,37 +38,35 @@
         }
 
         .container {
-            max-width: 750px; /* Slightly increased width for the container */
-            width: 100%;
-            margin: 0 auto; /* Center the container horizontally */
-            padding: 0 20px; /* Padding on both sides */
-            box-sizing: border-box; /* Ensure padding doesn't affect width */
-            position: relative; /* Allow for absolute positioning of the buttons */
+            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            margin-left: 250px;
+            margin-right: 250px;
+            padding: 20px;
         }
 
         .response-block {
-            background-color: #1e1e1e; /* Darker grey for response blocks */
+            background-color: #1e1e1e;
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             margin-top: 20px;
-            font-size: 14px; /* Smaller font size for responses */
-            line-height: 1.5; /* Improved readability */
-            color: #e0e0e0; /* Light text color */
-            font-family: Arial, sans-serif; /* Ensure font matches body font */
+            font-size: 14px;
+            line-height: 1.5;
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
         }
 
         .conversation {
-            max-height: 600px; /* Increased height */
+            max-height: 600px;
             overflow-y: auto;
             margin-bottom: 20px;
             padding: 15px;
-            background-color: #1a1a1a; /* Slightly lighter dark background */
+            background-color: #1a1a1a;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            color: #e0e0e0; /* Light text color */
-            width: 100%; /* Take full width of the container */
-            box-sizing: border-box; /* Ensure the padding doesn't cause overflow */
+            color: #e0e0e0;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .assistant {
@@ -61,25 +74,25 @@
         }
 
         .assistant .response-block {
-            background-color: #333; /* Dark grey for assistant responses */
-            border-left: 5px solid #8a2be2; /* Matte purple border */
+            background-color: #333;
+            border-left: 5px solid #8a2be2;
         }
 
         .note {
             font-size: 14px;
             color: #8a2be2;
             margin-bottom: 10px;
-            text-align: center; /* Center text within the note */
+            text-align: center;
         }
 
         .results-form {
-            background-color: #1e1e1e; /* Darker background for the form */
+            background-color: #1e1e1e;
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            margin-bottom: 20px; /* Added margin for spacing */
-            width: 100%; /* Ensure the form takes full width */
-            box-sizing: border-box; /* Ensure padding doesn't affect width */
+            margin-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         textarea {
@@ -88,24 +101,24 @@
             border-radius: 4px;
             border: 1px solid #333;
             margin-bottom: 10px;
-            font-size: 12px; /* Smaller font size for input */
-            background-color: #2c2c2c; /* Dark input background */
-            color: #ffffff; /* White text color */
-            box-sizing: border-box; /* Ensure textarea fits within the form */
-            height: 300px; /* Increased height for the message box */
+            font-size: 12px;
+            background-color: #2c2c2c;
+            color: #ffffff;
+            box-sizing: border-box;
+            height: 300px;
             font-family: Arial, sans-serif;
         }
 
         #file {
             margin-bottom: 10px;
-            color: #e0e0e0; /* Light text for file input */
+            color: #e0e0e0;
         }
 
         .send-button {
-            width: 100%; /* Ensure send button takes full width */
+            width: 100%;
             padding: 12px;
             border-radius: 4px;
-            background-color: #8a2be2; /* Matte purple button color */
+            background-color: #8a2be2;
             color: #ffffff;
             border: none;
             cursor: pointer;
@@ -114,27 +127,27 @@
         }
 
         .send-button:hover {
-            background-color: #6a1db7; /* Darker purple on hover */
+            background-color: #6a1db7;
         }
 
         .secondary-button {
             display: block;
-            width: 100%; /* Ensure secondary buttons take full width */
+            width: 100%;
             padding: 12px;
             border-radius: 4px;
-            background-color: #8a2be2; /* Matte purple button color */
+            background-color: #8a2be2;
             color: #ffffff;
             border: none;
             cursor: pointer;
             font-size: 16px;
             text-align: center;
-            text-decoration: none; /* Remove underline from links */
-            margin-top: 10px; /* Add margin to space the buttons */
-            box-sizing: border-box; /* Ensure padding doesn't affect width */
+            text-decoration: none;
+            margin-top: 10px;
+            box-sizing: border-box;
         }
 
         .secondary-button:hover {
-            background-color: #6a1db7; /* Darker purple on hover */
+            background-color: #6a1db7;
         }
 
         .mt-3 {
@@ -150,13 +163,6 @@
             text-align: center;
             margin-bottom: 20px;
         }
-
-        @media (max-width: 768px) {
-
-            .secondary-button, .send-button {
-                width: 100%; /* Full width on smaller screens */
-            }
-        }
     </style>
 </head>
 <body>
@@ -164,62 +170,63 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container">
-        <h1>ChatGPT Conversation</h1>
+    <div class="wrapper">
+        <div class="container">
+            <h1>ChatGPT Conversation</h1>
 
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="flash-message">
-                    {% for message in messages %}
-                        <p>{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <div class="note">
-            ChatGPT answers are not always 100% accurate so it's important to verify information crucial to your business.
-        </div>
-
-        <div class="conversation">
-            {% if is_admin %}
-                <!-- Show prompt and instructions to admin users -->
-                {% for message in conversation %}
-                    <div class="response-block">
-                        {{ message.content|safe }}
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="flash-message">
+                        {% for message in messages %}
+                            <p>{{ message }}</p>
+                        {% endfor %}
                     </div>
-                {% endfor %}
-            {% else %}
-                <!-- Show only the assistant's response to non-admin users -->
-                {% for message in conversation %}
-                    {% if message.role == "assistant" %}
-                        <div class="assistant">
-                            <div class="response-block">
-                                {{ message.content|safe }}
-                            </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="note">
+                ChatGPT answers are not always 100% accurate so it's important to verify information crucial to your business.
+            </div>
+
+            <div class="conversation">
+                {% if is_admin %}
+                    <!-- Show prompt and instructions to admin users -->
+                    {% for message in conversation %}
+                        <div class="response-block">
+                            {{ message.content|safe }}
                         </div>
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <!-- Show only the assistant's response to non-admin users -->
+                    {% for message in conversation %}
+                        {% if message.role == "assistant" %}
+                            <div class="assistant">
+                                <div class="response-block">
+                                    {{ message.content|safe }}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <form class="results-form" action="/view-prompt" method="POST" enctype="multipart/form-data">
+                <div>
+                    <label for="prompt">Your Message:</label>
+                    <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>
+                </div>
+                <div>
+                    <label for="file">Upload a Document (optional):</label>
+                    <input type="file" name="file" id="file" class="form-control" accept=".txt,.docx,.pdf">
+                </div>
+                <button type="submit" class="send-button">Send</button>
+            </form>
+
+            <a href="/clear-conversation" class="secondary-button">Clear Conversation History</a>
+            <a href="/prompt-menu" class="secondary-button">Pick a New Task</a>
+            <a href="/" class="secondary-button">Home Page</a>
         </div>
-
-        <form class="results-form" action="/view-prompt" method="POST" enctype="multipart/form-data">
-            <div>
-                <label for="prompt">Your Message:</label>
-                <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>
-            </div>
-            <div>
-                <label for="file">Upload a Document (optional):</label>
-                <input type="file" name="file" id="file" class="form-control" accept=".txt,.docx,.pdf">
-            </div>
-            <button type="submit" class="send-button">Send</button>
-        </form>
-
-        <a href="/clear-conversation" class="secondary-button">Clear Conversation History</a>
-        <a href="/prompt-menu" class="secondary-button">Pick a New Task</a>
-        <a href="/" class="secondary-button">Home Page</a>
+        {% include 'footer.html' %}
     </div>
-
-    {% include 'footer.html' %}
 </body>
 </html>

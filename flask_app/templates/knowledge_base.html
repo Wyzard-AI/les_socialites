@@ -8,24 +8,40 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px; /* Adjust padding to avoid overlap with the footer */
-            padding-bottom: 20px;
-            background-color: #121212; /* Dark background */
-            color: #e0e0e0; /* Light text */
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
         }
 
         .container {
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #1e1e1e; /* Darker grey for container */
+            padding: 46px;
+            background-color: #1e1e1e;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            margin-bottom: 20px; /* Space between sections */
+            margin-bottom: 20px;
         }
 
-        h1, h2 {
+        h1 {
             color: #ffffff;
             text-align: center;
             margin-bottom: 20px;
@@ -35,7 +51,7 @@
             font-size: 16px;
             margin-bottom: 10px;
             display: block;
-            color: #8a2be2; /* Purple text */
+            color: #8a2be2;
         }
 
         .form-control {
@@ -53,9 +69,9 @@
             display: block;
             width: 100%;
             padding: 12px;
-            margin-top: 20px;
+            margin-bottom: 40px;
             text-align: center;
-            background-color: #8a2be2; /* Matte purple button color */
+            background-color: #8a2be2;
             color: #ffffff;
             border: none;
             border-radius: 4px;
@@ -65,7 +81,7 @@
         }
 
         .submit-button:hover {
-            background-color: #6a1db7; /* Darker purple on hover */
+            background-color: #6a1db7;
         }
 
         .error, .success {
@@ -74,27 +90,11 @@
         }
 
         .error {
-            color: #ff4444; /* Red color for error messages */
+            color: #ff4444;
         }
 
         .success {
-            color: #39ff14; /* Green color for success messages */
-        }
-
-        .website-container {
-            max-width: 600px; /* Smaller width for website container */
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #1e1e1e; /* Matching background color */
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }
-
-        .website-form-label {
-            font-size: 16px;
-            margin-bottom: 10px;
-            display: block;
-            color: #8a2be2; /* Purple text */
+            color: #39ff14;
         }
     </style>
 </head>
@@ -103,39 +103,36 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container">
-        <h1>Knowledge Base</h1>
-        <div class="instruction-form">
-            <h2>Upload Knowledge Instructions</h2>
-            <form action="/submit-knowledge-instructions" method="POST" enctype="multipart/form-data">
-                <div>
-                    <label for="knowledge_instructions" class="form-label">Enter Knowledge Instruction:</label>
-                    <textarea class="form-control" id="knowledge_instructions" name="knowledge_instructions" rows="4"></textarea>
-                </div>
-                <div>
-                    <label for="file" class="form-label">Upload a Document (optional):</label>
-                    <input type="file" class="form-control" id="file" name="file" accept=".txt,.pdf,.docx">
-                </div>
-                <button type="submit" class="submit-button">Submit Instructions</button>
+    <div class="wrapper">
+        <div class="container">
+            <div class="instruction-form">
+                <h1>Upload Knowledge Instructions</h1>
+                <form action="/submit-knowledge-instructions" method="POST" enctype="multipart/form-data">
+                    <div>
+                        <label for="knowledge_instructions" class="form-label">Enter Knowledge Instruction:</label>
+                        <textarea class="form-control" id="knowledge_instructions" name="knowledge_instructions" rows="4"></textarea>
+                    </div>
+                    <div>
+                        <label for="file" class="form-label">Upload a Document (optional):</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".txt,.pdf,.docx">
+                    </div>
+                    <button type="submit" class="submit-button">Submit Instructions</button>
+                </form>
+                {% if success %}
+                    <p class="success">{{ success }}</p>
+                {% endif %}
+                {% if error %}
+                    <p class="error">{{ error }}</p>
+                {% endif %}
+            </div>
+            <h1>Add Website to Knowledge Base</h1>
+            <form action="/add-link" method="POST">
+                <label for="url" class="form-label">Website URL:</label>
+                <input type="url" id="url" name="url" class="form-control" placeholder="Enter the website URL" required>
+                <button type="submit" class="submit-button">Submit Website</button>
             </form>
-            {% if success %}
-                <p class="success">{{ success }}</p>
-            {% endif %}
-            {% if error %}
-                <p class="error">{{ error }}</p>
-            {% endif %}
         </div>
+        {% include 'footer.html' %}
     </div>
-
-    <div class="website-container">
-        <h2>Add Your Website to Knowledge Base</h2>
-        <form action="/add-link" method="POST">
-            <label for="url" class="website-form-label">Website URL:</label>
-            <input type="url" id="url" name="url" class="form-control" placeholder="Enter the website URL" required>
-            <button type="submit" class="submit-button">Submit</button>
-        </form>
-    </div>
-
-    {% include 'footer.html' %}
 </body>
 </html>
