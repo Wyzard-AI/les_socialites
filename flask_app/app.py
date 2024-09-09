@@ -3,6 +3,7 @@ import os
 import re
 import json
 import uuid
+import requests
 
 from openai import OpenAI
 
@@ -16,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pypdf import PdfReader
 from docx import Document
 from markdown2 import markdown
+from urllib.parse import urljoin, urlparse
 
 from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
 from flask_mail import Mail, Message
@@ -28,7 +30,7 @@ from functools import wraps
 
 from custom_session import CloudSQLSessionInterface
 
-
+from bs4 import BeautifulSoup
 
 ### FUNCTIONS START ###
 def before_request():
@@ -274,6 +276,45 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     except Exception as e:
         return f"An error occurred: {e}"
 
+def summarize_scraped_text(text):
+    # Ensure text isn't too long for the API
+    if len(text) > 4096:
+        text = text[:4096]  # Truncate text if needed
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that summarizes text."},
+            {"role": "user", "content": f"Analyze the following text that was scraped from a business's website and summarize the business's goods and services in English: {text}"}
+        ]
+    )
+
+    summary = response.choices[0].message.content
+    return summary
+
+def save_summary_to_db(url, summary):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    id = str(uuid.uuid4())
+    business_name = session.get('business_name')
+
+    try:
+        insert_query = """
+            INSERT INTO app.summaries (id, business_name, url, summary, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (id, business_name, url, summary, datetime.now()))
+        connection.commit()
+    except Exception as e:
+        print(f"Error saving summary to DB: {e}")
+        raise e
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
 def get_categories_for_business_type(business_type):
     # Define a dictionary mapping business types to categories
     business_type_to_categories = {
@@ -312,6 +353,44 @@ def get_categories_for_business_type(business_type):
 
     return business_type_categories
 
+def scrape_website(url, depth=1):
+    visited_urls = set()
+    scraped_text = []
+
+    def scrape_page(url, current_depth):
+        if current_depth > depth or url in visited_urls:
+            return
+        visited_urls.add(url)
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Failed to fetch {url}: {e}")
+            return
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Extract text from paragraphs
+        paragraphs = soup.find_all('p')
+        text = ' '.join(p.get_text() for p in paragraphs)
+        scraped_text.append(text)
+
+        # Find all links on the page
+        links = soup.find_all('a', href=True)
+        for link in links:
+            href = link['href']
+            # Construct a full URL
+            full_url = urljoin(url, href)
+            # Check if the link is part of the original domain
+            if urlparse(full_url).netloc == urlparse(url).netloc:
+                scrape_page(full_url, current_depth + 1)
+
+    # Start scraping from the initial URL
+    scrape_page(url, 1)
+
+    return ' '.join(scraped_text)
+
 
 
 
@@ -320,7 +399,7 @@ def get_categories_for_business_type(business_type):
 app = Flask(__name__)
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
-ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
+ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com', 'wyzard.feedback@gmail.com']
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Google Sheets setup
@@ -377,58 +456,6 @@ mail = Mail(app)
 @app.before_request
 def make_session_permanent():
     session.permanent = True
-
-@app.before_request
-def check_session_expiration():
-    # Check if the session has an expiration time (i.e. permanent)
-    if session.permanent:
-        # Check the last accessed time from session
-        last_accessed = session.get('last_accessed', datetime.now(timezone.utc))
-
-        if isinstance(last_accessed, str):
-            last_accessed = datetime.fromisoformat(last_accessed)
-
-        # If they haven't made a request in > 30 mins then delete session data
-        if datetime.now(timezone.utc) - last_accessed > app.permanent_session_lifetime:
-
-            user_id = current_user.id
-            session_id = session.sid
-
-            session.clear()
-
-            connection = get_connection()
-            cursor = connection.cursor()
-            try:
-                delete_query = """
-                    DELETE FROM app.conversations
-                    WHERE user_id = %s AND session_id = %s
-                """
-                cursor.execute(delete_query, (user_id, session_id))
-                connection.commit()
-            except Exception as e:
-                print(f"Error clearing conversation: {e}")
-
-            try:
-                delete_query = """
-                    DELETE FROM app.sessions
-                    WHERE session_id = %s
-                """
-                cursor.execute(delete_query, (session_id,))
-                connection.commit()
-            except Exception as e:
-                print(f"Error clearing conversation: {e}")
-
-            finally:
-                if cursor:
-                    cursor.close()
-                if connection:
-                    connection.close()
-
-            flash('Your session has expired due to inactivity.', 'info')
-            return redirect(url_for('login'))  # Redirect to a login or appropriate page
-
-        # Update the last accessed time
-        session['last_accessed'] = datetime.now(timezone.utc)
 
 class User(UserMixin):
     def __init__(self, user_id, email, password, business_name, business_type):
@@ -502,7 +529,6 @@ def login():
                 login_user(user)
                 session['business_name'] = user.business_name
                 session['business_type'] = user.business_type
-                session['last_accessed'] = datetime.now(timezone.utc)
                 return redirect(url_for('prompt_categories'))  # Redirect to the desired default page
             else:
                 flash("Email or password is incorrect.")
@@ -549,7 +575,7 @@ def register():
         domain = email.split('@')[1].split('.')[0]
 
         if domain in personal_domains:
-            business_name = "personal_account"
+            business_name = f"personal_account: {email}"
         else:
             business_name = domain
 
@@ -650,24 +676,22 @@ def logout():
     connection = get_connection()
     cursor = connection.cursor()
     try:
-        delete_query = """
+        delete_conversations_query = """
             DELETE FROM app.conversations
             WHERE user_id = %s AND session_id = %s
         """
-        cursor.execute(delete_query, (user_id, session_id))
+        cursor.execute(delete_conversations_query, (user_id, session_id))
         connection.commit()
-    except Exception as e:
-        print(f"Error clearing conversation: {e}")
 
-    try:
-        delete_query = """
+        delete_sessions_query = """
             DELETE FROM app.sessions
             WHERE session_id = %s
         """
-        cursor.execute(delete_query, (session_id,))
+        cursor.execute(delete_sessions_query, (session_id,))
         connection.commit()
     except Exception as e:
         print(f"Error clearing conversation: {e}")
+        connection.rollback()
 
     finally:
         if cursor:
@@ -714,7 +738,9 @@ def prompt_menu():
 
     # Get the categories for the selected business type
     categories = get_categories_for_business_type(business_type)
+    print(f"Categories for business type '{business_type}': {categories}")
 
+    categories_str = ', '.join(f"'{cat}'" for cat in categories)
     # Connect to the Postgres CloudSQL instance
     try:
         connection = get_connection()
@@ -731,15 +757,16 @@ def prompt_menu():
             cursor.execute(query, (category,))
         else:
             # If no category is specified or invalid, fetch all prompts in valid categories
-            query = """
+            query = f"""
                 SELECT category, subcategory, prompt, button_name
                 FROM app.prompts
-                WHERE category = ANY(%s)
+                WHERE category IN ({categories_str})
                 ORDER BY category, subcategory, prompt
             """
-            cursor.execute(query, (tuple(categories),))
+            cursor.execute(query)
 
         results = cursor.fetchall()
+        print(f"Fetched results: {results}")
 
         # Organize prompts by subcategory
         prompts_by_subcategory = {}
@@ -752,12 +779,21 @@ def prompt_menu():
                 'button_name': button_name
             })
 
+        print(f"Prompts by subcategory: {prompts_by_subcategory}")
+
         # Define the desired order of subcategories
         subcategory_order = ["Find", "Analyze", "Create", "Review"]
 
         # Sort the prompts by the desired subcategory order
-        sorted_prompts_by_subcategory = {subcategory: prompts_by_subcategory[subcategory] for subcategory in subcategory_order if subcategory in prompts_by_subcategory}
+        sorted_prompts_by_subcategory = {subcategory: prompts_by_subcategory[subcategory]
+                                 for subcategory in subcategory_order
+                                 if subcategory in prompts_by_subcategory}
 
+        for subcategory, prompts in prompts_by_subcategory.items():
+            if subcategory not in sorted_prompts_by_subcategory:
+                sorted_prompts_by_subcategory[subcategory] = prompts
+
+        print(f"Sorted prompts by subcategory: {sorted_prompts_by_subcategory}")
         return render_template('prompt_menu.html', category=category, prompts_by_subcategory=sorted_prompts_by_subcategory)
 
     except Exception as e:
@@ -869,11 +905,13 @@ def legal():
 
 @app.route('/knowledge-base')
 @login_required
+@restricted_access
 def knowledge_base():
     return render_template('knowledge_base.html')
 
 @app.route('/brand-voice')
 @login_required
+@restricted_access
 def brand_voice():
     return render_template('brand_voice.html')
 
@@ -989,6 +1027,31 @@ def submit_knowledge_instructions():
             connection.close()
 
     return redirect(url_for('knowledge_base'))
+
+@app.route('/add-link', methods=['GET', 'POST'])
+def add_link():
+    if request.method == 'POST':
+        url = request.form['url']
+        try:
+            # Scrape the website
+            print('Initating scraping')
+            scraped_text = scrape_website(url, depth=2)
+
+            # Summarize the scraped text using ChatGPT
+            print('Sending scraped text for summary')
+            summary = summarize_scraped_text(scraped_text)
+
+            # Save the summary to CloudSQL
+            print('Saving summary')
+            save_summary_to_db(url, summary)
+
+            print('Website summarized and saved successfully!', 'success')
+            return redirect(url_for('knowledge_base'))
+        except Exception as e:
+            print(f'An error occurred: {e}')
+            return redirect(url_for('knowledge_base'))
+
+    return render_template('knowledge_base.html')
 
 @app.route('/waitlist', methods=['GET'])
 def waitlist():

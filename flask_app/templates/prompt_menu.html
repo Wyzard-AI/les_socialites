@@ -44,6 +44,12 @@
             align-items: center;
         }
 
+        .prompt-form {
+            margin: 0; /* Reset default form margins */
+            padding: 0; /* Reset default form padding */
+            width: calc(20% - 10px); /* Adjust based on the desired number of prompts per row */
+        }
+
         .prompt {
             background-color: #8a2be2; /* Matte purple background */
             border: none; /* Remove any border */
@@ -52,20 +58,10 @@
             font-size: 16px;
             padding: 10px;
             border-radius: 8px;
-            width: calc(20% - 10px); /* Adjust based on the desired number of prompts per row */
+            width: 100%; /* Full width inside the form */
             text-align: center;
             transition: background-color 0.3s;
-        }
-
-        .prompt button {
-            background-color: transparent; /* Ensures there's no extra background */
-            color: inherit; /* Inherit white text color */
-            border: none; /* Remove any border */
-            width: 100%; /* Make button fill the entire area */
-            height: 100%; /* Make button fill the entire area */
-            padding: 0; /* Reset padding */
-            margin: 0; /* Reset margin */
-            font-size: inherit; /* Inherit font size */
+            display: block; /* Make the button a block-level element */
         }
 
         .prompt:hover {
@@ -99,19 +95,19 @@
         }
 
         @media (max-width: 992px) {
-            .prompt {
+            .prompt-form {
                 width: calc(33.33% - 10px); /* Three prompts per row on medium screens */
             }
         }
 
         @media (max-width: 768px) {
-            .prompt {
+            .prompt-form {
                 width: calc(50% - 10px); /* Two prompts per row on smaller screens */
             }
         }
 
         @media (max-width: 480px) {
-            .prompt {
+            .prompt-form {
                 width: calc(100% - 10px); /* One prompt per row on extra small screens */
             }
         }
@@ -128,31 +124,31 @@
             If you're uploading a file, select the file you want to upload and then click on the task button.
         </div>
 
-        <!-- Combined Upload Document and Prompt Selection Form -->
         <form action="/view-prompt" method="POST" enctype="multipart/form-data">
-
             <div class="mb-3">
                 <label for="file" class="form-label">Upload a Document (optional):</label>
                 <input type="file" class="file-input" name="file" id="file" accept=".txt,.docx,.pdf">
             </div>
+        </form>
 
-            {% for subcategory, prompts in prompts_by_subcategory.items() %}
-                <div class="subcategory">
-                    {{ subcategory }}
-                </div>
-                <div class="prompts-container">
-                    {% for prompt in prompts %}
-                        {% if prompt.prompt != "None" and prompt.button_name != "None" %}
+        {% for subcategory, prompts in prompts_by_subcategory.items() %}
+            <div class="subcategory">
+                {{ subcategory }}
+            </div>
+            <div class="prompts-container">
+                {% for prompt in prompts %}
+                    {% if prompt.prompt != "None" and prompt.button_name != "None" %}
+                        <form action="/view-prompt" method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="prompt" value="{{ prompt.prompt }}">
                             <input type="hidden" name="category" value="{{ category }}">
                             <button type="submit" class="prompt">
                                 {{ prompt.button_name if prompt.button_name else prompt.prompt }}
                             </button>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-            {% endfor %}
-        </form>
+                        </form>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endfor %}
     </div>
 
     {% include 'footer.html' %}
