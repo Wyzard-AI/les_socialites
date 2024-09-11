@@ -35,7 +35,7 @@
             max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
             margin-left: 250px;
             margin-right: 250px;
-            padding: 40px;
+            padding: 30px;
         }
 
         .card {
@@ -103,11 +103,6 @@
         select.form-control option:hover {
             background-color: #8a2be2;
         }
-
-        .main-content {
-            padding-bottom: 80px;
-        }
-
     </style>
 </head>
 <body>
@@ -163,7 +158,7 @@
                                     <textarea class="form-control" id="prompt" name="prompt" rows="4" required></textarea>
                                 </div>
                                 <div class="mb-3">
-                                    <label for="category" class="form-label">Select Category:</label>
+                                    <label for="category" class="form-label">Select Your Category:</label>
                                     <select class="form-control" id="category" name="category" required>
                                         {% for category in categories %}
                                             <option value="{{ category }}">{{ category }}</option>
@@ -188,7 +183,7 @@
                             <h5 class="card-title">🔄 Update Instructions 🔄</h5>
                             <form action="/update-instructions" method="POST">
                                 <div class="mb-3">
-                                    <label for="category" class="form-label">Select Category:</label>
+                                    <label for="category" class="form-label">Select Your Category:</label>
                                     <select class="form-control" id="category" name="category" required>
                                         {% for category in categories %}
                                             <option value="{{ category }}">{{ category }}</option>

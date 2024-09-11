@@ -391,6 +391,37 @@ def scrape_website(url, depth=1):
 
     return ' '.join(scraped_text)
 
+def get_brand_voice(business_name):
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # SQL query to retrieve the brand voice for the given business name
+        select_query = """
+            SELECT brand_voice
+            FROM app.brand_voice
+            WHERE business_name = %s
+            LIMIT 1;
+        """
+        cursor.execute(select_query, (business_name,))
+        result = cursor.fetchone()
+
+        if result:
+            brand_voice = result[0]  # Extract brand voice from the result
+            return brand_voice
+        else:
+            return None  # Return None if no brand voice is found
+
+    except Exception as e:
+        print(f"An error occurred while retrieving the brand voice: {e}")
+        return None
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
 
 
 
@@ -570,7 +601,7 @@ def register():
         password = request.form['password']
         business_type = request.form['business_type']  # Capture the business_type from the form
 
-        personal_domains = {'gmail', 'hotmail', 'yahoo', 'outlook', 'icloud', 'aol', 'live', 'msn', 'me'}
+        personal_domains = {'gmail', 'hotmail', 'yahoo', 'outlook', 'icloud', 'aol', 'live', 'msn'}
 
         domain = email.split('@')[1].split('.')[0]
 
@@ -935,6 +966,7 @@ def view_prompt():
     # Get the prompt and category from the form
     prompt = request.form['prompt']
     category = request.form.get('category')
+    business_name = session.get('business_name')
 
     # Generate or get session_id and user_id
     user_id = current_user.id
@@ -945,8 +977,12 @@ def view_prompt():
         file_text = extract_text_from_file(file)
         prompt += "\n\n" + file_text
 
-    # Append the user's prompt (including file content if applicable) to the conversation
-    modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
+    brand_voice = get_brand_voice(business_name)
+
+    if brand_voice is None:
+        modified_prompt = f"Please answer the following prompt based on the instructions provided: {prompt}"
+    else:
+        modified_prompt = f"Please answer the following prompt in a {brand_voice} tone of voice based on the instructions provided: {prompt}"
 
     # Save the user's prompt to the database
     save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
@@ -969,6 +1005,38 @@ def view_prompt():
     is_admin = user_email in ADMIN_EMAILS  # Replace with actual admin emails
 
     return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
+
+@app.route('/save-brand-voice', methods=['POST'])
+def save_brand_voice():
+    business_name = session.get('business_name')
+    brand_voices = request.form.getlist('brand_voice')  # Get list of selected brand voices
+    brand_voices_lower = [voice.lower() for voice in brand_voices]  # Convert each brand voice to lowercase
+    brand_voices_str = ', '.join(brand_voices_lower) # Join into a comma-separated string
+    brand_id = str(uuid.uuid4())  # Generate a unique UUID for the entry
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        insert_query = """
+            INSERT INTO app.brand_voice (id, business_name, brand_voice, timestamp)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (business_name) DO UPDATE
+            SET brand_voice = EXCLUDED.brand_voice, timestamp = EXCLUDED.timestamp
+        """
+        cursor.execute(insert_query, (brand_id, business_name, brand_voices_str, datetime.now()))
+        connection.commit()
+
+        flash('Brand voice(s) saved successfully!', 'success')
+    except Exception as e:
+        flash(f'An error occurred: {e}', 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return redirect(url_for('brand_voice'))
 
 @app.route('/submit-knowledge-instructions', methods=['POST'])
 @login_required
@@ -1238,33 +1306,7 @@ def submit_prompt():
         if connection:
             connection.close()
 
-    # Generate or get session_id and user_id
-    user_id = current_user.id  # UUID of the current user
-    session_id = session.sid
-
-    # Prepare the conversation without adding instructions here
-    modified_prompt = f"Here is the prompt, please answer based on the instructions provided: {prompt}"
-    conversation = [{"role": "user", "content": modified_prompt}]
-
-    # Save the user's prompt to the database
-    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
-
-    # Call the response function to handle instructions
-    response = get_openai_assistant_response(openai_client, conversation, category=sanitized_category)
-    formatted_response = markdown(response)
-
-    # Save the assistant's response to the database
-    save_conversation_to_db(user_id, session_id, 'assistant', response)
-
-    # Store the conversation in the session
-    conversation = load_conversation_from_db(user_id, session_id)
-
-    for message in conversation:
-        if message['role'] == 'assistant':
-            message['content'] = markdown(message['content'])
-
-    # Render the results.html template with the conversation details
-    return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation)
+    return render_template('index.html')
 
 @app.route('/assign-button-name', methods=['POST'])
 @login_required

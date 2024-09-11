@@ -8,19 +8,92 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px;
-            padding-bottom: 80px;
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
             background-color: #121212;
             color: #e0e0e0;
         }
-        .placeholder-container {
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
             display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 80vh;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
+        }
+
+        .form-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             text-align: center;
-            font-size: 24px;
+        }
+
+        .form-label {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #8a2be2;
+            display: block;
+            text-align: left;
+        }
+
+        .form-control {
+            background-color: #2c2c2c;
+            color: #ffffff;
+            border: 1px solid #333;
+            width: 100%;
+            padding: 10px;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .submit-button {
+            background-color: #8a2be2;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .submit-button:hover {
+            background-color: #6a1db7;
+        }
+
+        .flash-message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .flash-message.success {
+            background-color: #39ff14; /* Green for success */
+            color: #121212;
+        }
+
+        .flash-message.error {
+            background-color: #ff4444; /* Red for errors */
+            color: #ffffff;
         }
     </style>
 </head>
@@ -29,10 +102,36 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="placeholder-container">
-        Placeholder
-    </div>
+    <div class="wrapper">
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+        <div class="form-container">
+            <h1>Select Your Brand Voice</h1>
+            <form action="/save-brand-voice" method="POST">
+                <label for="brand_voice" class="form-label">Choose Brand Voice(s):</label>
+                <select id="brand_voice" name="brand_voice" class="form-control" multiple required>
+                    <option value="Funny">Funny</option>
+                    <option value="Casual">Casual</option>
+                    <option value="Professional">Professional</option>
+                    <option value="Persuasive">Persuasive</option>
+                    <option value="Inspirational">Inspirational</option>
+                    <option value="Playful">Playful</option>
+                    <option value="Technical">Technical</option>
+                    <option value="Quirky">Quirky</option>
+                    <option value="Educative">Educative</option>
+                </select>
 
-    {% include 'footer.html' %}
+                <button type="submit" class="submit-button">Save Brand Voice</button>
+            </form>
+        </div>
+        {% include 'footer.html' %}
+    </div>
 </body>
 </html>
