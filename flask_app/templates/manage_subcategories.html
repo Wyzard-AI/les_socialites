@@ -8,26 +8,40 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px;
-            padding-bottom: 20px;
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
             background-color: #121212;
             color: #e0e0e0;
+        }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
             display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
         }
 
         .container {
-            max-width: 800px;
-            width: 100%;
-            text-align: center;
+            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            margin-left: 250px;
+            margin-right: 250px;
+            padding: 20px;
         }
 
         h1 {
             color: #ffffff;
             margin-bottom: 40px;
+            text-align: center;
         }
 
         .list-group-item {
@@ -37,11 +51,11 @@
             margin-bottom: 10px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            padding: 15px; /* Reduced padding */
+            padding: 15px;
             list-style: none;
             text-align: left;
-            width: calc(100% - 40px); /* Smaller width */
-            margin: 10px auto; /* Centering the subcategory containers */
+            width: calc(100% - 40px);
+            margin: 10px auto;
         }
 
         .form-control {
@@ -100,7 +114,7 @@
             color: #ffffff;
             font-size: 16px;
             margin-top: 20px;
-            width: 100%; /* Match the width of the Enter Subcategories container */
+            width: 100%;
         }
 
         .btn-secondary:hover {
@@ -138,55 +152,56 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container">
-        <h1>🗂️ Manage Subcategories for {{ category }} 🗂️</h1>
+    <div class="wrapper">
+        <div class="container">
+            <h1>🗂️ Manage Subcategories for {{ category }} 🗂️</h1>
 
-        <!-- Add Subcategories Form -->
-        <div class="add-subcategories-form centered">
-            <form action="/add-subcategories" method="POST">
-                <input type="hidden" name="category" value="{{ category }}">
-                <label for="subcategories" class="form-label">Enter Subcategories (comma-separated):</label>
-                <input type="text" class="form-control" name="subcategories" id="subcategories" placeholder="e.g., Facebook Ads, Google Ads" required>
-                <button type="submit" class="btn btn-add-subcategories">Add Subcategories</button>
-            </form>
-        </div>
+            <!-- Add Subcategories Form -->
+            <div class="add-subcategories-form centered">
+                <form action="/add-subcategories" method="POST">
+                    <input type="hidden" name="category" value="{{ category }}">
+                    <label for="subcategories" class="form-label">Enter Subcategories (comma-separated):</label>
+                    <input type="text" class="form-control" name="subcategories" id="subcategories" placeholder="e.g., Facebook Ads, Google Ads" required>
+                    <button type="submit" class="btn btn-add-subcategories">Add Subcategories</button>
+                </form>
+            </div>
 
-        <div class="centered">
-            {% if subcategories %}
-                <ul class="list-group mb-3 w-100">
-                    {% for subcategory in subcategories %}
-                        <li class="list-group-item">
-                            <div class="mb-3">
-                                <span><strong>Subcategory:</strong></span>
-                            </div>
-                            <div class="d-flex flex-column align-items-center">
-                                <!-- Edit Subcategory Form -->
-                                <form action="/edit-subcategory" method="POST" class="mb-4 w-100">
-                                    <input type="hidden" name="category" value="{{ category }}">
-                                    <input type="hidden" name="old_subcategory" value="{{ subcategory }}">
-                                    <input type="text" name="new_subcategory_name" value="{{ subcategory }}" required class="form-control">
-                                    <button type="submit" class="btn btn-warning">Edit</button>
-                                </form>
-                                <!-- Delete Subcategory Form -->
-                                <form action="/delete-subcategory" method="POST" class="w-100">
-                                    <input type="hidden" name="category" value="{{ category }}">
-                                    <input type="hidden" name="subcategory" value="{{ subcategory }}">
-                                    <button type="submit" class="btn btn-danger">Delete</button>
-                                </form>
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="text-center">No subcategories available.</p>
-            {% endif %}
-        </div>
+            <div class="centered">
+                {% if subcategories %}
+                    <ul class="list-group mb-3 w-100">
+                        {% for subcategory in subcategories %}
+                            <li class="list-group-item">
+                                <div class="mb-3">
+                                    <span><strong>Subcategory:</strong></span>
+                                </div>
+                                <div class="d-flex flex-column align-items-center">
+                                    <!-- Edit Subcategory Form -->
+                                    <form action="/edit-subcategory" method="POST" class="mb-4 w-100">
+                                        <input type="hidden" name="category" value="{{ category }}">
+                                        <input type="hidden" name="old_subcategory" value="{{ subcategory }}">
+                                        <input type="text" name="new_subcategory_name" value="{{ subcategory }}" required class="form-control">
+                                        <button type="submit" class="btn btn-warning">Edit</button>
+                                    </form>
+                                    <!-- Delete Subcategory Form -->
+                                    <form action="/delete-subcategory" method="POST" class="w-100">
+                                        <input type="hidden" name="category" value="{{ category }}">
+                                        <input type="hidden" name="subcategory" value="{{ subcategory }}">
+                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                    </form>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-center">No subcategories available.</p>
+                {% endif %}
+            </div>
 
-        <div class="centered">
-            <a href="/manage-categories" class="btn-secondary">Back to Categories</a>
+            <div class="centered">
+                <a href="/manage-categories" class="btn-secondary">Back to Categories</a>
+            </div>
         </div>
+        {% include 'footer.html' %}
     </div>
-
-    {% include 'footer.html' %}
 </body>
 </html>

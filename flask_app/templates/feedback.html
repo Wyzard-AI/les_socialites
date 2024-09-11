@@ -8,17 +8,33 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px;
-            padding-bottom: 20px;
-            background-color: #121212; /* Dark background */
-            color: #e0e0e0; /* Light text */
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
         }
 
         h1 {
             color: #ffffff;
             text-align: center;
-            margin-top: 20px; /* Added margin to separate from the top */
+            margin-top: 20px;
         }
 
         .container {
@@ -26,7 +42,7 @@
             width: 100%;
             padding: 0 20px;
             box-sizing: border-box;
-            margin: 20px auto; /* Center the container horizontally */
+            margin: 20px auto;
         }
 
         .section {
@@ -49,7 +65,7 @@
             border: 1px solid #333;
             margin-bottom: 10px;
             font-size: 12px;
-            background-color: #2c2c2c; /* Dark input background */
+            background-color: #2c2c2c;
             color: #ffffff;
             box-sizing: border-box;
             height: 150px;
@@ -57,26 +73,25 @@
         }
 
         .submit-button, .secondary-button {
-            width: 100%; /* Ensure the buttons take full width of the container */
+            width: 100%;
             padding: 12px;
             border-radius: 4px;
-            background-color: #8a2be2; /* Matte purple button color */
+            background-color: #8a2be2;
             color: #ffffff;
             border: none;
             cursor: pointer;
             font-size: 16px;
             text-align: center;
             margin-top: 10px;
-            text-decoration: none; /* Remove underline from links */
+            text-decoration: none;
             display: block;
-            box-sizing: border-box; /* Ensure padding doesn't affect width */
+            box-sizing: border-box;
         }
 
         .submit-button:hover, .secondary-button:hover {
-            background-color: #6a1db7; /* Darker purple on hover */
+            background-color: #6a1db7;
         }
 
-        /* Flash message styles */
         .flash-messages {
             background-color: #444;
             color: #fff;
@@ -97,66 +112,67 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container">
-        <h1>Feedback</h1>
+    <div class="wrapper">
+        <div class="container">
+            <h1>Feedback</h1>
 
-        <!-- Flash message section -->
-        {% with messages = get_flashed_messages() %}
-          {% if messages %}
-            <div class="flash-messages" id="flash-messages">
-              {% for message in messages %}
-                <p class="flash-message">{{ message }}</p>
-              {% endfor %}
+            <!-- Flash message section -->
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages" id="flash-messages">
+                {% for message in messages %}
+                    <p class="flash-message">{{ message }}</p>
+                {% endfor %}
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- Bug Report Section -->
+            <div class="section">
+                <h2>🐛 Report Bug</h2>
+                <p>Please describe the bug that you experienced. What happened vs. what did you expect to happen?</p>
+                <form action="/send-feedback" method="POST">
+                    <textarea name="message" placeholder="Describe the bug here..." required></textarea>
+                    <input type="hidden" name="subject" value="Bug Report">
+                    <button type="submit" class="submit-button">Submit Bug Report</button>
+                </form>
             </div>
-          {% endif %}
-        {% endwith %}
 
-        <!-- Bug Report Section -->
-        <div class="section">
-            <h2>🐛 Report Bug</h2>
-            <p>Please describe the bug that you experienced. What happened vs. what did you expect to happen?</p>
-            <form action="/send-feedback" method="POST">
-                <textarea name="message" placeholder="Describe the bug here..." required></textarea>
-                <input type="hidden" name="subject" value="Bug Report">
-                <button type="submit" class="submit-button">Submit Bug Report</button>
-            </form>
+            <!-- Feature Idea Section -->
+            <div class="section">
+                <h2>🗺️ Suggest Feature</h2>
+                <p>Got an idea for a feature we should build for Wyzard? Please let us know here!</p>
+                <form action="/send-feedback" method="POST">
+                    <textarea name="message" placeholder="Describe your feature idea here..." required></textarea>
+                    <input type="hidden" name="subject" value="Feature Suggestion">
+                    <button type="submit" class="submit-button">Submit Feature Idea</button>
+                </form>
+            </div>
+
+            <!-- Support Request Section -->
+            <div class="section">
+                <h2>❓ Request Support</h2>
+                <p>Need help with Wyzard? Please let us know how we can make your experience better.</p>
+                <form action="/send-feedback" method="POST">
+                    <textarea name="message" placeholder="Describe your issue or request here..." required></textarea>
+                    <input type="hidden" name="subject" value="Support Request">
+                    <button type="submit" class="submit-button">Submit Support Request</button>
+                </form>
+            </div>
+
+            <a href="/results" class="secondary-button">Back to Conversation</a>
         </div>
 
-        <!-- Feature Idea Section -->
-        <div class="section">
-            <h2>🗺️ Suggest Feature</h2>
-            <p>Got an idea for a feature we should build for Wyzard? Please let us know here!</p>
-            <form action="/send-feedback" method="POST">
-                <textarea name="message" placeholder="Describe your feature idea here..." required></textarea>
-                <input type="hidden" name="subject" value="Feature Suggestion">
-                <button type="submit" class="submit-button">Submit Feature Idea</button>
-            </form>
-        </div>
-
-        <!-- Support Request Section -->
-        <div class="section">
-            <h2>❓ Request Support</h2>
-            <p>Need help with Wyzard? Please let us know how we can make your experience better.</p>
-            <form action="/send-feedback" method="POST">
-                <textarea name="message" placeholder="Describe your issue or request here..." required></textarea>
-                <input type="hidden" name="subject" value="Support Request">
-                <button type="submit" class="submit-button">Submit Support Request</button>
-            </form>
-        </div>
-
-        <a href="/results" class="secondary-button">Back to Conversation</a>
+        <!-- JavaScript to hide flash message after 5 seconds -->
+        <script>
+            setTimeout(function() {
+                var flashMessages = document.getElementById('flash-messages');
+                if (flashMessages) {
+                    flashMessages.style.opacity = '0';
+                }
+            }, 5000); // 5000ms = 5 seconds
+        </script>
+        {% include 'footer.html' %}
     </div>
-
-    <!-- JavaScript to hide flash message after 5 seconds -->
-    <script>
-        setTimeout(function() {
-            var flashMessages = document.getElementById('flash-messages');
-            if (flashMessages) {
-                flashMessages.style.opacity = '0';
-            }
-        }, 5000); // 5000ms = 5 seconds
-    </script>
-
-    {% include 'footer.html' %}
 </body>
 </html>

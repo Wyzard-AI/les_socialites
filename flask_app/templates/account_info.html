@@ -8,18 +8,34 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px; /* Adjust padding to avoid overlap with the footer */
-            padding-bottom: 20px;
-            background-color: #121212; /* Dark background */
-            color: #e0e0e0; /* Light text */
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
         }
 
         .container {
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #1e1e1e; /* Darker grey for container */
+            padding: 40px;
+            background-color: #1e1e1e;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         }
@@ -27,17 +43,17 @@
         h1 {
             color: #ffffff;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 40px;
         }
 
         .account-info p {
             font-size: 16px;
             margin: 10px 0;
-            color: #8a2be2; /* Purple text */
+            color: #8a2be2;
         }
 
         .error {
-            color: #ff4444; /* Red color for error messages */
+            color: #ff4444;
             text-align: center;
         }
     </style>
@@ -47,20 +63,21 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container">
-        <h1>Account Information</h1>
+    <div class="wrapper">
+        <div class="container">
+            <h1>Account Information</h1>
 
-        {% if error %}
-            <p class="error">{{ error }}</p>
-        {% else %}
-            <div class="account-info">
-                <p><strong>Email:</strong> {{ email }}</p>
-                <p><strong>Business Name:</strong> {{ business_name }}</p>
-                <p><strong>Business Type:</strong> {{ business_type }}</p>
-            </div>
-        {% endif %}
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% else %}
+                <div class="account-info">
+                    <p><strong>Email:</strong> {{ email }}</p>
+                    <p><strong>Business Name:</strong> {{ business_name }}</p>
+                    <p><strong>Business Type:</strong> {{ business_type }}</p>
+                </div>
+            {% endif %}
+        </div>
+        {% include 'footer.html' %}
     </div>
-
-    {% include 'footer.html' %}
 </body>
 </html>

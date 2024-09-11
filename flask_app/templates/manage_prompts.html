@@ -8,12 +8,29 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            display: flex;
             margin: 0;
-            padding: 20px;
-            padding-bottom: 20px;
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
             background-color: #121212;
             color: #e0e0e0;
         }
+
+        /* Wrapper for the main content and footer */
+        .wrapper {
+            flex: 1; /* Allows this section to grow and fill the available space */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1; /* Take up remaining space above the footer */
+            padding: 0px;
+        }
+
 
         h1 {
             color: #ffffff;
@@ -22,14 +39,14 @@
         }
 
         .container {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 0 20px;
-            box-sizing: border-box;
+            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            margin-left: 250px;
+            margin-right: 250px;
+            padding: 20px;
         }
 
         .subcategory {
-            font-size: 18px;
+            font-size: 14px;
             color: #ffffff;
             margin-bottom: 10px;
             padding-top: 20px;
@@ -53,8 +70,24 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             padding: 25px;
             text-align: center;
-            width: calc(20% - 10px); /* Adjust based on the desired number of cards per row */
+            width: calc(20% - 10px);
             box-sizing: border-box;
+            height: 600px; /* Set a fixed height */
+            display: flex; /* Enable flexbox for better content alignment */
+            flex-direction: column; /* Stack children vertically */
+            justify-content: space-between; /* Distribute space between children */
+        }
+
+        .card-title {
+            margin-bottom: 5px; /* Adjust spacing */
+            flex-grow: 1; /* Allow title to take up available space */
+            overflow: hidden; /* Hide overflow text */
+            text-overflow: ellipsis; /* Show ellipsis if text overflows */
+            white-space: wrap; /* Prevent line breaks */
+        }
+
+        .card-footer {
+            flex-shrink: 0; /* Prevent footer from shrinking */
         }
 
         .form-control {
@@ -66,12 +99,12 @@
             padding: 10px;
             border-radius: 4px;
             box-sizing: border-box;
-            font-size: 12.8px; /* 20% smaller input text size */
-            font-family: Arial, sans-serif; /* Set the font-family for input text */
+            font-size: 14px;
+            font-family: Arial, sans-serif;
         }
 
         .form-label {
-            font-size: 18px; /* Increase font size for the label above "Edit Prompt" */
+            font-size: 14px;
             margin-bottom: 10px;
             display: block;
         }
@@ -80,7 +113,7 @@
             border: none;
             color: #ffffff;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             padding: 10px 20px;
             border-radius: 4px;
             text-decoration: none;
@@ -91,11 +124,11 @@
         }
 
         .btn-edit-prompt {
-            background-color: #ff69b4; /* Pink complementary color */
+            background-color: #ff69b4;
         }
 
         .btn-assign-button {
-            background-color: #32cd32; /* Green complementary color */
+            background-color: #32cd32;
         }
 
         .btn-secondary {
@@ -107,7 +140,7 @@
             border-radius: 4px;
             text-decoration: none;
             color: #ffffff;
-            font-size: 16px;
+            font-size: 14px;
             box-sizing: border-box;
             margin-top: 20px;
         }
@@ -119,24 +152,6 @@
         .btn:hover {
             opacity: 0.8;
         }
-
-        @media (max-width: 992px) {
-            .card {
-                width: calc(33.33% - 10px); /* Three cards per row on medium screens */
-            }
-        }
-
-        @media (max-width: 768px) {
-            .card {
-                width: calc(50% - 10px); /* Two cards per row on smaller screens */
-            }
-        }
-
-        @media (max-width: 480px) {
-            .card {
-                width: calc(100% - 10px); /* One card per row on extra small screens */
-            }
-        }
     </style>
 </head>
 <body>
@@ -144,75 +159,76 @@
     {% include 'logo.html' %}
     {% include 'left_menu.html' %}
 
-    <div class="container my-5">
-        <h1 class="text-center mb-4">📝 Manage Prompts 📝</h1>
+    <div class="wrapper">
+        <div class="container my-5">
+            <h1 class="text-center mb-4">📝 Manage Prompts 📝</h1>
 
-        <!-- Dropdown for Selecting Category -->
-        <div class="text-center mb-4">
-            <form action="/manage-prompts" method="GET" class="d-inline-block">
-                <label for="category" class="form-label">Filter by Category:</label>
-                <select class="form-control d-inline-block w-auto" id="category" name="category" onchange="this.form.submit()">
-                    <option value="">All Categories</option>
-                    {% for category in categories %}
-                        <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
-                            {{ category }}
-                        </option>
-                    {% endfor %}
-                </select>
+            <!-- Dropdown for Selecting Category -->
+            <div class="text-center mb-4">
+                <form action="/manage-prompts" method="GET" class="d-inline-block">
+                    <label for="category" class="form-label">Filter by Category:</label>
+                    <select class="form-control d-inline-block w-auto" id="category" name="category" onchange="this.form.submit()">
+                        <option value="">All Categories</option>
+                        {% for category in categories %}
+                            <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
+                                {{ category }}
+                            </option>
+                        {% endfor %}
+                    </select>
 
-                <!-- Dropdown for Selecting Subcategory -->
-                <label for="subcategory" class="form-label mt-3">Filter by Subcategory:</label>
-                <select class="form-control d-inline-block w-auto" id="subcategory" name="subcategory" onchange="this.form.submit()">
-                    <option value="">All Subcategories</option>
-                    {% for subcategory in subcategories %}
-                        <option value="{{ subcategory }}" {% if selected_subcategory == subcategory %}selected{% endif %}>
-                            {{ subcategory }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </form>
-        </div>
-
-        <!-- Display Prompts Organized by Subcategory -->
-        {% for subcategory, prompts in prompts_by_subcategory.items() %}
-            <div class="subcategory">{{ subcategory }}</div>
-            <div class="prompts-container">
-                {% for prompt in prompts %}
-                    <div class="card">
-                        <h5 class="card-title">{{ prompt.button_name if prompt.button_name else prompt.prompt }}</h5>
-                        <div class="card-footer">
-                            <!-- Form for Editing Prompt -->
-                            <form action="/edit-prompt" method="POST">
-                                <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
-                                <div class="mb-3">
-                                    <label for="new_prompt_text" class="form-label">Edit Prompt:</label>
-                                    <textarea class="form-control" name="new_prompt_text" rows="6">{{ prompt.prompt }}</textarea>
-                                </div>
-                                <button type="submit" class="btn btn-edit-prompt">Edit Prompt</button>
-                            </form>
-
-                            <div style="margin-top: 20px;"></div> <!-- Add space between buttons -->
-
-                            <!-- Form for Assigning Button Name -->
-                            <form action="/assign-button-name" method="POST" class="mt-4">
-                                <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
-                                <div class="mb-3">
-                                    <label for="button_name" class="form-label">Assign Button Name:</label>
-                                    <input type="text" class="form-control" name="button_name" value="{{ prompt.button_name }}">
-                                </div>
-                                <button type="submit" class="btn btn-assign-button">Assign Button Name</button>
-                            </form>
-                        </div>
-                    </div>
-                {% endfor %}
+                    <!-- Dropdown for Selecting Subcategory -->
+                    <label for="subcategory" class="form-label mt-3">Filter by Subcategory:</label>
+                    <select class="form-control d-inline-block w-auto" id="subcategory" name="subcategory" onchange="this.form.submit()">
+                        <option value="">All Subcategories</option>
+                        {% for subcategory in subcategories %}
+                            <option value="{{ subcategory }}" {% if selected_subcategory == subcategory %}selected{% endif %}>
+                                {{ subcategory }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
             </div>
-        {% endfor %}
 
-        <div class="text-center mt-4">
-            <a href="/" class="btn-secondary">Back to Home</a>
+            <!-- Display Prompts Organized by Subcategory -->
+            {% for subcategory, prompts in prompts_by_subcategory.items() %}
+                <div class="subcategory">{{ subcategory }}</div>
+                <div class="prompts-container">
+                    {% for prompt in prompts %}
+                        <div class="card">
+                            <h5 class="card-title">{{ prompt.button_name if prompt.button_name else prompt.prompt }}</h5>
+                            <div class="card-footer">
+                                <!-- Form for Editing Prompt -->
+                                <form action="/edit-prompt" method="POST">
+                                    <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
+                                    <div class="mb-3">
+                                        <label for="new_prompt_text" class="form-label">Edit Prompt:</label>
+                                        <textarea class="form-control" name="new_prompt_text" rows="6">{{ prompt.prompt }}</textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-edit-prompt">Edit Prompt</button>
+                                </form>
+
+                                <div style="margin-top: 20px;"></div> <!-- Add space between buttons -->
+
+                                <!-- Form for Assigning Button Name -->
+                                <form action="/assign-button-name" method="POST" class="mt-4">
+                                    <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
+                                    <div class="mb-3">
+                                        <label for="button_name" class="form-label">Assign Button Name:</label>
+                                        <input type="text" class="form-control" name="button_name" value="{{ prompt.button_name }}">
+                                    </div>
+                                    <button type="submit" class="btn btn-assign-button">Assign Button Name</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+            <div class="text-center mt-4">
+                <a href="/" class="btn-secondary">Back to Home</a>
+            </div>
         </div>
+        {% include 'footer.html' %}
     </div>
-
-    {% include 'footer.html' %}
 </body>
 </html>
