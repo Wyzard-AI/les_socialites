@@ -165,7 +165,7 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     if brand_voice is None:
         brand_voice_instructions = ""
     else:
-        brand_voice_instructions = f"Brand Voice Instructions: Answer the prompt in a {brand_voice} tone of voice"
+        brand_voice_instructions = f"Brand Voice Instructions: Reply in a {brand_voice} writing style"
 
     if conversation is None:
         conversation = load_conversation_from_db(user_id, session_id)
@@ -173,7 +173,7 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
 
-        default_instructions = "There are no instructions. Simply answer the prompt."
+        default_instructions = "There are no specific instructions."
 
         instructions = ""
 
@@ -996,7 +996,7 @@ def view_prompt():
         file_text = extract_text_from_file(file)
         prompt += "\n\n" + file_text
 
-    modified_prompt = f"Please answer the following prompt based on the instructions provided: {prompt}"
+    modified_prompt = f"Please answer the following prompt: {prompt}"
 
     # Save the user's prompt to the database
     save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
