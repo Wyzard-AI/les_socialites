@@ -158,6 +158,14 @@ def extract_text_from_file(file):
 def get_openai_assistant_response(openai_client, conversation=None, category=None):
     user_id = current_user.id
     session_id = session.sid
+    business_name = session.get('business_name')
+
+    brand_voice = get_brand_voice(business_name)
+
+    if brand_voice is None:
+        brand_voice_instructions = ""
+    else:
+        brand_voice_instructions = f"Brand Voice Instructions: Answer the prompt in a {brand_voice} tone of voice"
 
     if conversation is None:
         conversation = load_conversation_from_db(user_id, session_id)
@@ -165,11 +173,9 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
 
-        default_instructions = "There are no special instructions. Simply follow the instructions in the prompt."
+        default_instructions = "There are no instructions. Simply answer the prompt."
 
         instructions = ""
-
-        business_name = session.get('business_name')
 
         try:
             connection = get_connection()
@@ -200,7 +206,7 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
                 category_result = cursor.fetchone()
 
                 if category_result and category_result[0]:
-                    instructions += "Category-Specific Instructions: " + category_result[0] + " "
+                    instructions += "Category-specific Instructions: " + category_result[0] + " "
 
         except Exception as e:
             print(f"Error: {e}")
@@ -210,14 +216,22 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
             if connection:
                 connection.close()
 
+        instructions += brand_voice_instructions
+
         # If no instructions were found, use the default instructions
         if not instructions:
-            instructions = "Default Instructions: " + default_instructions
+            instructions = default_instructions + brand_voice_instructions
         else:
             # Prepend context to the instructions
-            instructions = f"""You're going to potentially receive multiple sets of instructions to help answer the prompt.
-            Prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
-            These are the instructions... {instructions}"""
+            instructions = f"""
+            Every time you get a new prompt, you will potentially receive 3 different sets of instructions for it:
+
+            1.Knowledge Base Instructions, 2.Category-specific Instructions, and 3.Brand Voice Instructions.
+
+            Here is how to prioritize those instructions: 1, 2, 3.
+
+            {instructions}
+            """
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
@@ -245,9 +259,20 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
                 category_result = cursor.fetchone()
 
                 if category_result and category_result[0]:
-                    instructions = f"""You're going to receive multiple sets of instructions to help answer the prompt.
-                        If available, prioritze answering the prompt using the Knowledge Base instructions followed by the Category-Specific Instructions.
-                        These are the instructions... Category-Specific Instructions: {category_result[0]}"""
+
+                    instructions += "Category-specific Instructions: " + category_result[0] + " "
+
+                    instructions += brand_voice_instructions
+
+                    instructions = f"""
+                    Every time you get a new prompt, you will potentially receive 3 different sets of instructions for it:
+
+                    1.Knowledge Base Instructions, 2.Category-specific Instructions, and 3.Brand Voice Instructions.
+
+                    Here is how to prioritize those instructions: 1, 2, 3.
+
+                    {instructions}
+                    """
 
                     # Sanitize the instructions and add them to the conversation
                     sanitized_instructions = sanitize_text(instructions)
@@ -769,7 +794,6 @@ def prompt_menu():
 
     # Get the categories for the selected business type
     categories = get_categories_for_business_type(business_type)
-    print(f"Categories for business type '{business_type}': {categories}")
 
     categories_str = ', '.join(f"'{cat}'" for cat in categories)
     # Connect to the Postgres CloudSQL instance
@@ -789,15 +813,14 @@ def prompt_menu():
         else:
             # If no category is specified or invalid, fetch all prompts in valid categories
             query = f"""
-                SELECT category, subcategory, prompt, button_name
+                SELECT subcategory, prompt, button_name
                 FROM app.prompts
                 WHERE category IN ({categories_str})
-                ORDER BY category, subcategory, prompt
+                ORDER BY subcategory, prompt
             """
             cursor.execute(query)
 
         results = cursor.fetchall()
-        print(f"Fetched results: {results}")
 
         # Organize prompts by subcategory
         prompts_by_subcategory = {}
@@ -809,8 +832,6 @@ def prompt_menu():
                 'prompt': prompt,
                 'button_name': button_name
             })
-
-        print(f"Prompts by subcategory: {prompts_by_subcategory}")
 
         # Define the desired order of subcategories
         subcategory_order = ["Find", "Analyze", "Create", "Review"]
@@ -824,7 +845,6 @@ def prompt_menu():
             if subcategory not in sorted_prompts_by_subcategory:
                 sorted_prompts_by_subcategory[subcategory] = prompts
 
-        print(f"Sorted prompts by subcategory: {sorted_prompts_by_subcategory}")
         return render_template('prompt_menu.html', category=category, prompts_by_subcategory=sorted_prompts_by_subcategory)
 
     except Exception as e:
@@ -966,7 +986,6 @@ def view_prompt():
     # Get the prompt and category from the form
     prompt = request.form['prompt']
     category = request.form.get('category')
-    business_name = session.get('business_name')
 
     # Generate or get session_id and user_id
     user_id = current_user.id
@@ -977,12 +996,7 @@ def view_prompt():
         file_text = extract_text_from_file(file)
         prompt += "\n\n" + file_text
 
-    brand_voice = get_brand_voice(business_name)
-
-    if brand_voice is None:
-        modified_prompt = f"Please answer the following prompt based on the instructions provided: {prompt}"
-    else:
-        modified_prompt = f"Please answer the following prompt in a {brand_voice} tone of voice based on the instructions provided: {prompt}"
+    modified_prompt = f"Please answer the following prompt based on the instructions provided: {prompt}"
 
     # Save the user's prompt to the database
     save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
