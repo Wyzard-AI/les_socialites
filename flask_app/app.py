@@ -165,7 +165,7 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     if brand_voice is None:
         brand_voice_instructions = ""
     else:
-        brand_voice_instructions = f"Brand Voice Instructions: Reply in a {brand_voice} writing style"
+        brand_voice_instructions = f"Brand Voice Instructions: When answering the prompt please make all content you are giving me respects this tone of voice: {brand_voice} writing style"
 
     if conversation is None:
         conversation = load_conversation_from_db(user_id, session_id)
@@ -455,7 +455,7 @@ def get_brand_voice(business_name):
 app = Flask(__name__)
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
-ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com', 'wyzard.feedback@gmail.com']
+ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Google Sheets setup
@@ -494,15 +494,6 @@ connector = Connector()
 # OpenAI API
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
-
-# Flask-Mail configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'wyzard.feedback@gmail.com'
-app.config['MAIL_PASSWORD'] = get_secret('wyzard-email-app-password')
-app.config['MAIL_DEFAULT_SENDER'] = 'wyzard.feedback@gmail.com'
-mail = Mail(app)
 
 
 
@@ -613,7 +604,6 @@ def register():
         "jenny@lessocialites.com",
         "ruth@lessocialites.com",
         "imen@lessocialites.com",
-        "wyzard.feedback@gmail.com",
         "felix@lessocialites.com",
         "karen@lessocialites.com",
         "ari@lessocialites.com",
@@ -940,11 +930,6 @@ def account_info():
         if connection:
             connection.close()
 
-@app.route('/feedback')
-@login_required
-def feedback():
-    return render_template('feedback.html')
-
 @app.route('/forgot_password')
 def forgot_password():
     return render_template('forgot_password.html')
@@ -1154,30 +1139,6 @@ def submit_waitlist():
         flash(f"An error occurred: {e}", "error")
 
     return redirect(url_for('waitlist'))
-
-@app.route('/send-feedback', methods=['POST'])
-@login_required
-def send_feedback():
-    # Retrieve form data
-    message_content = request.form.get('message')
-    subject = request.form.get('subject')
-
-    # Validate form data
-    if not message_content or not subject:
-        flash("All fields are required.")
-        return redirect(url_for('feedback'))
-
-    # Send email
-    try:
-        msg = Message(subject=f"{subject}", recipients=["info@lessocialites.com"])
-        msg.body = message_content
-        mail.send(msg)
-        flash("Thank you for your feedback! Your message has been sent.")
-    except Exception as e:
-        flash(f"An error occurred while sending your message: {str(e)}")
-        return redirect(url_for('feedback'))
-
-    return redirect(url_for('feedback'))
 
 @app.route('/forgot_password_submit', methods=['POST'])
 def forgot_password_submit():
