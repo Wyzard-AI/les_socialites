@@ -65,6 +65,26 @@
             margin-bottom: 15px;
         }
 
+        .instruction-item {
+            background-color: #2c2c2c;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .instruction-text {
+            flex-grow: 1;
+            color: #e0e0e0;
+            margin-right: 20px;
+            padding: 5px;
+            overflow-wrap: break-word;
+            min-width: 60%;
+        }
+
         .submit-button {
             display: block;
             width: 100%;
@@ -80,7 +100,29 @@
             cursor: pointer;
         }
 
+        .delete-button {
+            display: block;
+            width: 100px; /* Fixed width to prevent overflow */
+            padding: 8px 12px;
+            margin: 0 auto; /* Centers the button horizontally */
+            text-align: center;
+            background-color: #8a2be2;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap; /* Prevents text from wrapping inside the button */
+            overflow: hidden; /* Hides overflow if any */
+            text-overflow: ellipsis; /* Adds ellipsis if text overflows */
+        }
+
         .submit-button:hover {
+            background-color: #6a1db7;
+        }
+
+        .delete-button:hover {
             background-color: #6a1db7;
         }
 
@@ -125,6 +167,22 @@
                     <p class="error">{{ error }}</p>
                 {% endif %}
             </div>
+
+            <h1>Existing Knowledge Instructions</h1>
+            <div class="instruction-list">
+                {% for id, knowledge_instructions in instructions %}
+                    <div class="instruction-item">
+                        <div class="instruction-text">{{ knowledge_instructions }}</div>
+                        <form action="/delete-knowledge-instructions" method="POST">
+                            <input type="hidden" name="id" value="{{ id }}">
+                            <button type="submit" class="delete-button">Delete</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p>No instructions available.</p>
+                {% endfor %}
+            </div>
+
             <h1>Add Website to Knowledge Base</h1>
             <form action="/add-link" method="POST">
                 <label for="url" class="form-label">Website URL:</label>

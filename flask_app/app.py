@@ -939,12 +939,6 @@ def forgot_password():
 def legal():
     return render_template('legal.html')
 
-@app.route('/knowledge-base')
-@login_required
-@restricted_access
-def knowledge_base():
-    return render_template('knowledge_base.html')
-
 @app.route('/brand-voice')
 @login_required
 @restricted_access
@@ -1037,6 +1031,35 @@ def save_brand_voice():
 
     return redirect(url_for('brand_voice'))
 
+@app.route('/knowledge-base', methods=['GET', 'POST'])
+@login_required
+def knowledge_base():
+    # Get the business name from the session
+    business_name = session.get('business_name')
+
+    # Fetch existing knowledge instructions for the business name
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        query = """
+            SELECT id, knowledge_instructions
+            FROM app.knowledge_base
+            WHERE business_name = %s
+        """
+        cursor.execute(query, (business_name,))
+        instructions = cursor.fetchall()  # List of (id, instruction) tuples
+
+    except Exception as e:
+        flash(f"Error fetching instructions: {e}", "danger")
+        instructions = []
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return render_template('knowledge_base.html', instructions=instructions)
+
 @app.route('/submit-knowledge-instructions', methods=['POST'])
 @login_required
 def submit_knowledge_instructions():
@@ -1086,6 +1109,37 @@ def submit_knowledge_instructions():
     except Exception as e:
         print(f"An error occurred: {e}")
         flash(f"An error occurred: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return redirect(url_for('knowledge_base'))
+
+@app.route('/delete-knowledge-instructions', methods=['POST'])
+@login_required
+def delete_knowledge_instructions():
+    instruction_id = request.form['id']
+
+    # SQL query to delete the selected instruction from the table
+    delete_query = """
+        DELETE FROM app.knowledge_base WHERE id = %s
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (instruction_id,))
+        connection.commit()
+        flash('Instruction deleted successfully!', 'success')
+
+    except Exception as e:
+        flash(f"Error deleting instruction: {e}", 'danger')
 
     finally:
         if cursor:
@@ -1942,7 +1996,6 @@ def submit_knowledge():
 
 @app.route('/delete-knowledge', methods=['POST'])
 @login_required
-@restricted_access
 def delete_knowledge():
     instruction_id = request.form['id']
 
@@ -1959,10 +2012,10 @@ def delete_knowledge():
         # Execute the delete query
         cursor.execute(delete_query, (instruction_id,))
         connection.commit()
+        flash('Instruction deleted successfully!', 'success')
 
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred while deleting knowledge: {e}", 500
+        flash(f"Error deleting instruction: {e}", 'danger')
 
     finally:
         if cursor:
