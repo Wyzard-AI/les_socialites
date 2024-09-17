@@ -17,17 +17,15 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
@@ -102,9 +100,9 @@
 
         .delete-button {
             display: block;
-            width: 100px; /* Fixed width to prevent overflow */
+            width: 100px;
             padding: 8px 12px;
-            margin: 0 auto; /* Centers the button horizontally */
+            margin: 0 auto;
             text-align: center;
             background-color: #8a2be2;
             color: #ffffff;
@@ -113,9 +111,9 @@
             text-decoration: none;
             font-size: 14px;
             cursor: pointer;
-            white-space: nowrap; /* Prevents text from wrapping inside the button */
-            overflow: hidden; /* Hides overflow if any */
-            text-overflow: ellipsis; /* Adds ellipsis if text overflows */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .submit-button:hover {
@@ -141,15 +139,15 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
 
     <div class="wrapper">
         <div class="container">
             <div class="instruction-form">
                 <h1>Upload Knowledge Instructions</h1>
-                <form action="/submit-knowledge-instructions" method="POST" enctype="multipart/form-data">
+                <form action="/app/submit-knowledge-instructions" method="POST" enctype="multipart/form-data">
                     <div>
                         <label for="knowledge_instructions" class="form-label">Enter Knowledge Instruction:</label>
                         <textarea class="form-control" id="knowledge_instructions" name="knowledge_instructions" rows="4"></textarea>
@@ -173,7 +171,7 @@
                 {% for id, knowledge_instructions in instructions %}
                     <div class="instruction-item">
                         <div class="instruction-text">{{ knowledge_instructions }}</div>
-                        <form action="/delete-knowledge-instructions" method="POST">
+                        <form action="/app/delete-knowledge-instructions" method="POST">
                             <input type="hidden" name="id" value="{{ id }}">
                             <button type="submit" class="delete-button">Delete</button>
                         </form>
@@ -184,13 +182,13 @@
             </div>
 
             <h1>Add Website to Knowledge Base</h1>
-            <form action="/add-link" method="POST">
+            <form action="/app/add-link" method="POST">
                 <label for="url" class="form-label">Website URL:</label>
                 <input type="url" id="url" name="url" class="form-control" placeholder="Enter the website URL" required>
                 <button type="submit" class="submit-button">Submit Website</button>
             </form>
         </div>
-        {% include 'footer.html' %}
+        {% include 'app/product_footer.html' %}
     </div>
 </body>
 </html>

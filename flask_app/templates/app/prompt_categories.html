@@ -17,17 +17,15 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
@@ -37,7 +35,7 @@
         }
 
         .container {
-            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            max-width: calc(100% - 500px);
             margin-left: 250px;
             margin-right: 250px;
             padding: 20px;
@@ -71,22 +69,22 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
 
     <div class="wrapper">
         <div class="container my-5">
             <h1 class="text-center mb-4">Pick Your AI Assistant</h1>
             <div class="row justify-content-center">
                 {% for category, emoji in categories_with_emojis.items() %}
-                    <a href="/prompt-menu?category={{ category }}" class="category-button">
+                    <a href="/app/prompt-menu?category={{ category }}" class="category-button">
                         {{ emoji }} {{ category }}
                     </a>
                 {% endfor %}
             </div>
         </div>
-        {% include 'footer.html' %}
+        {% include 'app/product_footer.html' %}
     </div>
 </body>
 </html>

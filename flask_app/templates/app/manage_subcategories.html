@@ -17,22 +17,20 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
         .container {
-            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            max-width: calc(100% - 500px);
             margin-left: 250px;
             margin-right: 250px;
             padding: 20px;
@@ -148,9 +146,9 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
 
     <div class="wrapper">
         <div class="container">
@@ -158,7 +156,7 @@
 
             <!-- Add Subcategories Form -->
             <div class="add-subcategories-form centered">
-                <form action="/add-subcategories" method="POST">
+                <form action="/app/add-subcategories" method="POST">
                     <input type="hidden" name="category" value="{{ category }}">
                     <label for="subcategories" class="form-label">Enter Subcategories (comma-separated):</label>
                     <input type="text" class="form-control" name="subcategories" id="subcategories" placeholder="e.g., Facebook Ads, Google Ads" required>
@@ -176,14 +174,14 @@
                                 </div>
                                 <div class="d-flex flex-column align-items-center">
                                     <!-- Edit Subcategory Form -->
-                                    <form action="/edit-subcategory" method="POST" class="mb-4 w-100">
+                                    <form action="/app/edit-subcategory" method="POST" class="mb-4 w-100">
                                         <input type="hidden" name="category" value="{{ category }}">
                                         <input type="hidden" name="old_subcategory" value="{{ subcategory }}">
                                         <input type="text" name="new_subcategory_name" value="{{ subcategory }}" required class="form-control">
                                         <button type="submit" class="btn btn-warning">Edit</button>
                                     </form>
                                     <!-- Delete Subcategory Form -->
-                                    <form action="/delete-subcategory" method="POST" class="w-100">
+                                    <form action="/app/delete-subcategory" method="POST" class="w-100">
                                         <input type="hidden" name="category" value="{{ category }}">
                                         <input type="hidden" name="subcategory" value="{{ subcategory }}">
                                         <button type="submit" class="btn btn-danger">Delete</button>
@@ -198,10 +196,10 @@
             </div>
 
             <div class="centered">
-                <a href="/manage-categories" class="btn-secondary">Back to Categories</a>
+                <a href="/app/manage-categories" class="btn-secondary">Back to Categories</a>
             </div>
         </div>
-        {% include 'footer.html' %}
+        {% include 'app/product_footer.html' %}
     </div>
 </body>
 </html>

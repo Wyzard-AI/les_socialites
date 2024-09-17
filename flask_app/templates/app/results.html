@@ -17,17 +17,15 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
@@ -38,7 +36,7 @@
         }
 
         .container {
-            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            max-width: calc(100% - 500px);
             margin-left: 250px;
             margin-right: 250px;
             padding: 20px;
@@ -154,10 +152,9 @@
             margin-top: 20px;
         }
 
-        /* Flash message styling */
         .flash-message {
             max-width: 300px;
-            background-color: #ff4444; /* Red background for error messages */
+            background-color: #ff4444;
             color: #ffffff;
             padding: 10px;
             border-radius: 8px;
@@ -167,9 +164,9 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
 
     <div class="wrapper">
         <div class="container">
@@ -211,7 +208,7 @@
                 {% endif %}
             </div>
 
-            <form class="results-form" action="/view-prompt" method="POST" enctype="multipart/form-data">
+            <form class="results-form" action="/app/view-prompt" method="POST" enctype="multipart/form-data">
                 <div>
                     <label for="prompt">Your Message:</label>
                     <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>
@@ -223,11 +220,11 @@
                 <button type="submit" class="send-button">Send</button>
             </form>
 
-            <a href="/clear-conversation" class="secondary-button">Clear Conversation History</a>
-            <a href="/prompt-menu" class="secondary-button">Pick a New Task</a>
-            <a href="/" class="secondary-button">Home Page</a>
+            <a href="/app/clear-conversation" class="secondary-button">Clear Conversation History</a>
+            <a href="/app/prompt-menu" class="secondary-button">Pick a New Task</a>
+            <a href="/app" class="secondary-button">Home Page</a>
         </div>
-        {% include 'footer.html' %}
+        {% include 'app/product_footer.html' %}
     </div>
 </body>
 </html>

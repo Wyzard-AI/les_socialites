@@ -17,17 +17,15 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
@@ -66,10 +64,6 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
-
     <div class="wrapper">
         <div class="container">
             <h1>Frequently Asked Questions</h1>
@@ -82,7 +76,6 @@
                 <p class="faq-answer">You can contact our support team by visiting the "Contact Us" page or emailing support@wyzard.io.</p>
             </div>
         </div>
-        {% include 'footer.html' %}
     </div>
 </body>
 </html>

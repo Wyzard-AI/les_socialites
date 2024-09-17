@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homepage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            margin: 0;
+            padding: 0;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 0px;
+        }
+
+        .logo {
+            margin-bottom: 30px;
+        }
+
+        .btn-primary {
+            background-color: #8a2be2;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            width: 150px;
+            text-align: center;
+        }
+
+        .btn-primary:hover {
+            background-color: #6a1db7;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
+        <a href="{{ url_for('login') }}" class="btn-primary">Login</a>
+    </div>
+</body>
+</html>
