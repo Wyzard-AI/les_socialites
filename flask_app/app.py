@@ -106,6 +106,11 @@ def load_conversation_from_db(user_id, session_id):
         cursor.execute(select_query, (user_id, session_id))
         rows = cursor.fetchall()
         conversation = [{'role': row[0], 'content': row[1]} for row in rows]
+
+        # Sort messages in the order: system, user, assistant
+        role_order = {'system': 0, 'user': 1, 'assistant': 2}
+        conversation.sort(key=lambda msg: role_order.get(msg['role'], 3))
+
         return conversation
     except Exception as e:
         print(f"Error loading conversation from DB: {e}")
@@ -289,6 +294,8 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     # Call the OpenAI API with the entire conversation
     try:
         conversation = load_conversation_from_db(user_id, session_id)
+
+        print(conversation)
 
         response = openai_client.chat.completions.create(
             model="gpt-4o",
