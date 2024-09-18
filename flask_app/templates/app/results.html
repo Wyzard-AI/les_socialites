@@ -54,6 +54,17 @@
             font-family: Arial, sans-serif;
         }
 
+
+        .system-message {
+            background-color: #f0f0f0; /* Light gray for system messages */
+            color: #333;
+        }
+
+        .user-message {
+            background-color: #d9f9d9; /* Light green for user messages */
+            color: #333;
+        }
+
         .conversation {
             max-height: 600px;
             overflow-y: auto;
@@ -190,9 +201,19 @@
                 {% if is_admin %}
                     <!-- Show prompt and instructions to admin users -->
                     {% for message in conversation %}
-                        <div class="response-block">
-                            {{ message.content|safe }}
-                        </div>
+                        {% if message.role == 'system' %}
+                            <div class="response-block system-message">
+                                <strong>System:</strong> {{ message.content|safe }}
+                            </div>
+                        {% elif message.role == 'user' %}
+                            <div class="response-block user-message">
+                                <strong>User:</strong> {{ message.content|safe }}
+                            </div>
+                        {% else %}
+                            <div class="response-block">
+                                {{ message.content|safe }}
+                            </div>
+                        {% endif %}
                     {% endfor %}
                 {% else %}
                     <!-- Show only the assistant's response to non-admin users -->
