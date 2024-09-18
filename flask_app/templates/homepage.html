@@ -8,51 +8,287 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            display: flex;
             margin: 0;
             padding: 0;
-            flex-direction: column;
-            min-height: 100vh;
-            background-color: #121212;
-            color: #e0e0e0;
+            background-color: #ffffff;
+            color: #121212;
         }
 
-        .main-content {
-            flex: 1;
+        .header {
             display: flex;
-            flex-direction: column;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            padding: 0px;
+            padding: 20px;
+            background-color: #ffffff;
         }
 
-        .logo {
-            margin-bottom: 30px;
+        .header .branding {
+            display: flex;
+            align-items: center;
         }
 
-        .btn-primary {
-            background-color: #8a2be2;
-            border: none;
-            color: #ffffff;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 10px 20px;
-            border-radius: 4px;
+        .header .branding img {
+            height: 70px;
+        }
+
+        .header .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .header .nav-links a {
             text-decoration: none;
-            display: inline-block;
-            width: 150px;
+            color: #121212;
+            padding: 5px;
+            font-size: 18px;
+        }
+
+        .hero {
+            position: relative;
+            text-align: center;
+            color: white;
+        }
+
+        .hero img {
+            width: 100%;
+            height: 750px;
+            object-fit: cover;
+        }
+
+        .hero .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             text-align: center;
         }
 
-        .btn-primary:hover {
-            background-color: #6a1db7;
+        .hero .overlay h2 {
+            font-size: 36px;
+            margin: 0;
+            margin-bottom: 20px;
+        }
+
+        .hero .overlay .btn-get-started {
+            margin-top: 40px;
+            padding: 10px 20px;
+            background-color: #8a2be2;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            text-decoration: none;
+        }
+
+        .section {
+            padding: 40px 20px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .section h3 {
+            margin-bottom: 20px;
+            font-size: 200%;
+        }
+
+        .video-demo video {
+            width: 40%;
+        }
+
+        .key-features {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 25px;
+        }
+
+        .key-features img {
+            width: 25%;
+        }
+
+        .key-features .features-info {
+            text-align: left;
+            padding: 20px;
+        }
+
+        .key-features .features-info p {
+            margin: 15px 0;
+        }
+
+        .key-features .features-info p strong {
+            font-weight: bold;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #bbb;
+        }
+
+        .footer .email-subscription {
+            width: 50%;
+        }
+
+        .footer .email-subscription form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .footer .email-subscription input[type="email"] {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            width: 350px; /* Set a fixed width or adjust as needed */
+            max-width: 100%;
+        }
+
+        .footer .email-subscription button {
+            padding: 10px;
+            border: none;
+            background-color: #8a2be2;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .footer .footer-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .footer .footer-links .link-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .footer .footer-links a {
+            text-decoration: none;
+            color: #bbb;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .footer .link-column h4 {
+            margin-bottom: 10px;
+            color: #e0e0e0;
+            font-size: 16px;
+        }
+
+        .review {
+            font-style: italic;
+            margin-top: 20px;
+            font-size: 150%;
+        }
+
+        .review .author {
+            font-style: normal;
+            font-size: 14px;
+            color: #999;
         }
     </style>
+
+    <!-- Include Font Awesome for social media icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
-    <div class="main-content">
-        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
-        <a href="{{ url_for('login') }}" class="btn-primary">Login</a>
+    <div class="header">
+        <div class="branding">
+            <img src="{{ url_for('static', filename='wyzard_favicon.png') }}" alt="Wyzard Logo">
+        </div>
+        <nav class="nav-links">
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('features') }}">Features</a>
+            <a href="{{ url_for('case_studies') }}">Case Studies</a>
+            <a href="{{ url_for('pricing') }}">Pricing</a>
+            <a href="{{ url_for('faq') }}">FAQ</a>
+            <a href="{{ url_for('blog') }}">Blog</a>
+        </nav>
     </div>
+
+    <div class="hero">
+        <img src="{{ url_for('static', filename='homepage_hero.png') }}" alt="Hero Image">
+        <div class="overlay">
+            <h2>Your All-In-One AI Tool</h2>
+            <a href="{{ url_for('get_started') }}" class="btn-get-started">Get Started</a>
+        </div>
+    </div>
+
+    <div class="section video-demo">
+        <h3>Video Demo</h3>
+        <video controls>
+            <source src="{{ url_for('static', filename='demo_video.mp4') }}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <div class="section key-features">
+        <img src="{{ url_for('static', filename='features_left_2.png') }}" alt="Computer Screen">
+        <div class="features-info">
+            <h3>Key Features</h3>
+            <p><strong>Brand Voice:</strong> Make sure all your content sounds just like you</p>
+            <p><strong>Knowledge Base:</strong> Add your website, your presentations, your documents, and any other info you want about your business</p>
+            <p><strong>25 Trained Assistants:</strong> Ready to tackle every task your business might need help with</p>
+        </div>
+    </div>
+
+    <div class="section review">
+        <p>"This tool has revolutionized how we work!"</p>
+        <p class="author">John Doe from USA</p>
+    </div>
+
+    <div class="footer">
+        <div class="email-subscription">
+            <p>Join our mailing list for updates</p>
+            <form id="newsletter-form" action="{{ url_for('submit_newsletter') }}" method="POST">
+                <input type="email" name="email" placeholder="Your email" required>
+                <button type="submit">Subscribe</button>
+            </form>
+            <p id="newsletter-message"></p> <!-- Element to display success/error messages -->
+        </div>
+        <div class="footer-links">
+            <div class="link-column">
+                <h4>The Small Print</h4>
+                <a href="{{ url_for('about_us') }}">About Us</a>
+                <a href="{{ url_for('contact_us') }}">Contact</a>
+                <a href="{{ url_for('faq') }}">FAQ</a>
+                <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+                <a href="{{ url_for('terms_conditions') }}">Terms and Conditions</a>
+            </div>
+            <div class="link-column">
+                <h4>Social Media</h4>
+                <a href="https://www.facebook.com" class="social-icon"><i class="fab fa-facebook"></i> Facebook</a>
+                <a href="https://www.instagram.com" class="social-icon"><i class="fab fa-instagram"></i> Instagram</a>
+                <a href="https://www.linkedin.com" class="social-icon"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+        // AJAX form submission for newsletter
+        $('#newsletter-form').on('submit', function(event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            $.ajax({
+                url: '/submit_newsletter',
+                type: 'POST',
+                data: $(this).serialize(), // Serialize form data
+                success: function(response) {
+                    // Show success message
+                    $('#newsletter-message').text(response.message).css('color', 'green');
+                },
+                error: function(xhr) {
+                    // Show error message
+                    const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred.';
+                    $('#newsletter-message').text(errorMessage).css('color', 'red');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

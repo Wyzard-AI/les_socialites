@@ -148,7 +148,7 @@
 
             <!-- Filter Form to Select Business Name -->
             <div class="card">
-                <form action="/app/manage-knowledge-base" method="GET">
+                <form action="{{ url_for('manage_knowledge_base') }}" method="GET">
                     <div class="mb-3">
                         <label for="filter_business_name" class="form-label">Filter by Business Name:</label>
                         <select id="filter_business_name" name="filter_business_name" class="form-control">
@@ -164,7 +164,7 @@
 
             <!-- Form to Submit New Knowledge Instruction -->
             <div class="card">
-                <form action="/app/submit-knowledge" method="POST">
+                <form action="{{ url_for('submit_knowledge') }}" method="POST">
                     <div class="mb-3">
                         <label for="business_name" class="form-label">Select Business Name:</label>
                         <select id="business_name" name="business_name" class="form-control" required>
@@ -188,7 +188,7 @@
                         <p>ID: {{ instruction.id }}</p>
                         <p>Business Name: {{ instruction.business_name }}</p>
                         <p>{{ instruction.knowledge_instructions }}</p>
-                        <form action="/app/delete-knowledge" method="POST">
+                        <form action="{{ url_for('delete_knowledge') }}" method="POST">
                             <input type="hidden" name="id" value="{{ instruction.id }}">
                             <button type="submit">Delete</button>
                         </form>

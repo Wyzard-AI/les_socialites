@@ -932,14 +932,14 @@ def account_info():
         if connection:
             connection.close()
 
-@app.route('/forgot_password')
+@app.route('/forgot-password')
 def forgot_password():
     return render_template('forgot_password.html')
 
-@app.route('/legal')
+@app.route('/app/product-legal')
 @login_required
-def legal():
-    return render_template('legal.html')
+def product_legal():
+    return render_template('app/product_legal.html')
 
 @app.route('/app/brand-voice')
 @login_required
@@ -952,9 +952,10 @@ def brand_voice():
 def billing():
     return render_template('app/billing.html')
 
-@app.route('/faq')
-def faq():
-    return render_template('faq.html')
+@app.route('/app/product-faq')
+@login_required
+def product_faq():
+    return render_template('app/product_faq.html')
 
 
 
@@ -1002,6 +1003,7 @@ def view_prompt():
     return render_template('app/results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
 
 @app.route('/app/save-brand-voice', methods=['POST'])
+@login_required
 def save_brand_voice():
     business_name = session.get('business_name')
     brand_voices = request.form.getlist('brand_voice')  # Get list of selected brand voices
@@ -1152,6 +1154,7 @@ def delete_knowledge_instructions():
     return redirect(url_for('knowledge_base'))
 
 @app.route('/app/add-link', methods=['GET', 'POST'])
+@login_required
 def add_link():
     if request.method == 'POST':
         url = request.form['url']
@@ -1180,7 +1183,7 @@ def add_link():
 def waitlist():
     return render_template('waitlist.html')
 
-@app.route('/submit_waitlist', methods=['POST'])
+@app.route('/submit-waitlist', methods=['POST'])
 def submit_waitlist():
     name = request.form['name']
     email = request.form['email']
@@ -1196,7 +1199,7 @@ def submit_waitlist():
 
     return redirect(url_for('waitlist'))
 
-@app.route('/forgot_password_submit', methods=['POST'])
+@app.route('/forgot-password-submit', methods=['POST'])
 def forgot_password_submit():
     email = request.form['email']
 
@@ -1230,7 +1233,7 @@ def forgot_password_submit():
     # Redirect to the registration page after deleting the email
     return redirect(url_for('register'))
 
-@app.route('/submit_newsletter', methods=['POST'])
+@app.route('/submit-newsletter', methods=['POST'])
 def submit_newsletter():
     email = request.form['email']
 
@@ -1274,6 +1277,74 @@ def submit_newsletter():
 @app.route('/')
 def homepage():
     return render_template('homepage.html')
+
+@app.route('/features')
+def features():
+    return render_template('features.html')
+
+@app.route('/case-studies')
+def case_studies():
+    return render_template('case_studies.html')
+
+@app.route('/pricing')
+def pricing():
+    return render_template('pricing.html')
+
+@app.route('/faq')
+def faq():
+    return render_template('faq.html')
+
+@app.route('/blog')
+def blog():
+    return render_template('blog.html')
+
+@app.route('/get-started')
+def get_started():
+    return render_template('get_started.html')
+
+@app.route('/about-us')
+def about_us():
+    return render_template('about_us.html')
+
+@app.route('/contact_us')
+def contact_us():
+    return render_template('contact_us.html')
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
+@app.route('/terms-conditions')
+def terms_conditions():
+    return render_template('terms_conditions.html')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ########## WYZARD MANAGEMENT FOR ADMINS ##########
 
@@ -2009,6 +2080,7 @@ def submit_knowledge():
 
 @app.route('/app/delete-knowledge', methods=['POST'])
 @login_required
+@restricted_access
 def delete_knowledge():
     instruction_id = request.form['id']
 

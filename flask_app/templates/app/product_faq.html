@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ - Wyzard</title>
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            margin: 0;
+            padding: 0px;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        .wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 0px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .faq-section {
+            margin-bottom: 20px;
+        }
+
+        .faq-question {
+            font-size: 18px;
+            font-weight: bold;
+            color: #8a2be2;
+            margin-bottom: 15px;
+        }
+
+        .faq-answer {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #e0e0e0;
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <h1>Frequently Asked Questions</h1>
+            <div class="faq-section">
+                <p class="faq-question">What is Wyzard.io?</p>
+                <p class="faq-answer">Wyzard.io is a platform that provides AI-powered tools and services to enhance your business processes.</p>
+            </div>
+            <div class="faq-section">
+                <p class="faq-question">How can I contact support?</p>
+                <p class="faq-answer">You can contact our support team by visiting the "Contact Us" page or emailing support@wyzard.io.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

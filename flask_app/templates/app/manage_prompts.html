@@ -163,7 +163,7 @@
 
             <!-- Dropdown for Selecting Category -->
             <div class="text-center mb-4">
-                <form action="/app/manage-prompts" method="GET" class="d-inline-block">
+                <form action="{{ url_for('manage_prompts') }}" method="GET" class="d-inline-block">
                     <label for="category" class="form-label">Filter by Category:</label>
                     <select class="form-control d-inline-block w-auto" id="category" name="category" onchange="this.form.submit()">
                         <option value="">All Categories</option>
@@ -196,7 +196,7 @@
                             <h5 class="card-title">{{ prompt.button_name if prompt.button_name else prompt.prompt }}</h5>
                             <div class="card-footer">
                                 <!-- Form for Editing Prompt -->
-                                <form action="/app/edit-prompt" method="POST">
+                                <form action="{{ url_for('edit_prompt') }}" method="POST">
                                     <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
                                     <div class="mb-3">
                                         <label for="new_prompt_text" class="form-label">Edit Prompt:</label>
@@ -208,7 +208,7 @@
                                 <div style="margin-top: 20px;"></div> <!-- Add space between buttons -->
 
                                 <!-- Form for Assigning Button Name -->
-                                <form action="/app/assign-button-name" method="POST" class="mt-4">
+                                <form action="{{ url_for('assign_button_name') }}" method="POST" class="mt-4">
                                     <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
                                     <div class="mb-3">
                                         <label for="button_name" class="form-label">Assign Button Name:</label>

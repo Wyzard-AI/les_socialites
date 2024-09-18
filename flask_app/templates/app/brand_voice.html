@@ -113,7 +113,7 @@
         </div>
         <div class="form-container">
             <h1>Select Your Brand Voice</h1>
-            <form action="/app/save-brand-voice" method="POST">
+            <form action="{{ url_for('save_brand_voice') }}" method="POST">
                 <label for="brand_voice" class="form-label">Choose Brand Voice(s):</label>
                 <select id="brand_voice" name="brand_voice" class="form-control" multiple required>
                     <option value="Funny">Funny</option>

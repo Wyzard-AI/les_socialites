@@ -208,7 +208,7 @@
                 {% endif %}
             </div>
 
-            <form class="results-form" action="/app/view-prompt" method="POST" enctype="multipart/form-data">
+            <form class="results-form" action="{{ url_for('view_prompt') }}" method="POST" enctype="multipart/form-data">
                 <div>
                     <label for="prompt">Your Message:</label>
                     <textarea name="prompt" id="prompt" rows="10" class="form-control" required></textarea>
@@ -220,9 +220,9 @@
                 <button type="submit" class="send-button">Send</button>
             </form>
 
-            <a href="/app/clear-conversation" class="secondary-button">Clear Conversation History</a>
-            <a href="/app/prompt-menu" class="secondary-button">Pick a New Task</a>
-            <a href="/app" class="secondary-button">Home Page</a>
+            <a href="{{ url_for('clear_conversation') }}" class="secondary-button">Clear Conversation History</a>
+            <a href="{{ url_for('prompt_menu') }}" class="secondary-button">Pick a New Task</a>
+            <a href="{{ url_for('index') }}" class="secondary-button">Home Page</a>
         </div>
         {% include 'app/product_footer.html' %}
     </div>

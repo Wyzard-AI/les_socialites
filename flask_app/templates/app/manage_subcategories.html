@@ -156,7 +156,7 @@
 
             <!-- Add Subcategories Form -->
             <div class="add-subcategories-form centered">
-                <form action="/app/add-subcategories" method="POST">
+                <form action="{{ url_for('add_subcategories') }}" method="POST">
                     <input type="hidden" name="category" value="{{ category }}">
                     <label for="subcategories" class="form-label">Enter Subcategories (comma-separated):</label>
                     <input type="text" class="form-control" name="subcategories" id="subcategories" placeholder="e.g., Facebook Ads, Google Ads" required>
@@ -174,14 +174,14 @@
                                 </div>
                                 <div class="d-flex flex-column align-items-center">
                                     <!-- Edit Subcategory Form -->
-                                    <form action="/app/edit-subcategory" method="POST" class="mb-4 w-100">
+                                    <form action="{{ url_for('edit_subcategory') }}" method="POST" class="mb-4 w-100">
                                         <input type="hidden" name="category" value="{{ category }}">
                                         <input type="hidden" name="old_subcategory" value="{{ subcategory }}">
                                         <input type="text" name="new_subcategory_name" value="{{ subcategory }}" required class="form-control">
                                         <button type="submit" class="btn btn-warning">Edit</button>
                                     </form>
                                     <!-- Delete Subcategory Form -->
-                                    <form action="/app/delete-subcategory" method="POST" class="w-100">
+                                    <form action="{{ url_for('delete_subcategory') }}" method="POST" class="w-100">
                                         <input type="hidden" name="category" value="{{ category }}">
                                         <input type="hidden" name="subcategory" value="{{ subcategory }}">
                                         <button type="submit" class="btn btn-danger">Delete</button>
@@ -196,7 +196,7 @@
             </div>
 
             <div class="centered">
-                <a href="/app/manage-categories" class="btn-secondary">Back to Categories</a>
+                <a href="{{ url_for('manage_categories') }}" class="btn-secondary">Back to Categories</a>
             </div>
         </div>
         {% include 'app/product_footer.html' %}
