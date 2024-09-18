@@ -165,7 +165,7 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
     if brand_voice is None:
         brand_voice_instructions = ""
     else:
-        brand_voice_instructions = f"Brand Voice Instructions: Reply in a {brand_voice} writing style"
+        brand_voice_instructions = f"Brand Voice Instructions: When answering the prompt please make all content you are giving me respect this tone of voice: {brand_voice} writing style"
 
     if conversation is None:
         conversation = load_conversation_from_db(user_id, session_id)
@@ -455,7 +455,7 @@ def get_brand_voice(business_name):
 app = Flask(__name__)
 app.secret_key = get_secret('les-socialites-app-secret-key')
 
-ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com', 'wyzard.feedback@gmail.com']
+ADMIN_EMAILS = ['renaudbeaupre1991@gmail.com', 'info@lessocialites.com']
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 # Google Sheets setup
@@ -494,15 +494,6 @@ connector = Connector()
 # OpenAI API
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
-
-# Flask-Mail configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'wyzard.feedback@gmail.com'
-app.config['MAIL_PASSWORD'] = get_secret('wyzard-email-app-password')
-app.config['MAIL_DEFAULT_SENDER'] = 'wyzard.feedback@gmail.com'
-mail = Mail(app)
 
 
 
@@ -613,7 +604,6 @@ def register():
         "jenny@lessocialites.com",
         "ruth@lessocialites.com",
         "imen@lessocialites.com",
-        "wyzard.feedback@gmail.com",
         "felix@lessocialites.com",
         "karen@lessocialites.com",
         "ari@lessocialites.com",
@@ -692,7 +682,7 @@ def register():
 
     return render_template('register.html', is_socialites_whitelisted=is_socialites_whitelisted)
 
-@app.route('/clear-conversation')
+@app.route('/app/clear-conversation')
 @login_required
 def clear_conversation():
     user_id = current_user.id
@@ -719,7 +709,7 @@ def clear_conversation():
 
     session.pop('conversation', None)
 
-    return redirect('/results')
+    return redirect(url_for('results'))
 
 @app.route('/logout')
 @login_required
@@ -768,7 +758,7 @@ def logout():
 def robots_txt():
     return send_from_directory(app.static_folder, 'robots.txt')
 
-@app.route('/results')
+@app.route('/app/results')
 @login_required
 def results():
     user_id = current_user.id
@@ -782,9 +772,9 @@ def results():
 
     business_type = session.get('business_type', 'No business type selected')
 
-    return render_template('results.html', conversation=conversation, business_type=business_type)
+    return render_template('app/results.html', conversation=conversation, business_type=business_type)
 
-@app.route('/prompt-menu')
+@app.route('/app/prompt-menu')
 @login_required
 def prompt_menu():
     category = request.args.get('category')
@@ -845,7 +835,7 @@ def prompt_menu():
             if subcategory not in sorted_prompts_by_subcategory:
                 sorted_prompts_by_subcategory[subcategory] = prompts
 
-        return render_template('prompt_menu.html', category=category, prompts_by_subcategory=sorted_prompts_by_subcategory)
+        return render_template('app/prompt_menu.html', category=category, prompts_by_subcategory=sorted_prompts_by_subcategory)
 
     except Exception as e:
         print(f"Error: {e}")
@@ -857,7 +847,7 @@ def prompt_menu():
         if connection:
             connection.close()
 
-@app.route('/prompt-categories')
+@app.route('/app/prompt-categories')
 @login_required
 def prompt_categories():
     # Dictionary of categories with their corresponding emojis
@@ -901,9 +891,9 @@ def prompt_categories():
         if category in categories_with_emojis
     }
 
-    return render_template('prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
+    return render_template('app/prompt_categories.html', categories_with_emojis=categories_with_emojis_filtered)
 
-@app.route('/account-info')
+@app.route('/app/account-info')
 @login_required
 def account_info():
     # Retrieve the user_id from the session
@@ -926,13 +916,15 @@ def account_info():
         # If user data is found, prepare it for display
         if user_data:
             email, business_name, business_type = user_data
-            return render_template('account_info.html', email=email, business_name=business_name, business_type=business_type)
+            return render_template('app/account_info.html', email=email, business_name=business_name, business_type=business_type)
         else:
             # Handle case where user data isn't found
-            return render_template('account_info.html', error="User data not found.")
+            flash("Account unsuccessfully retrieved! Please register", "error")
+            return redirect(url_for('register'))
     except Exception as e:
         print(f"Error querying the database: {e}")
-        return render_template('account_info.html', error="An error occurred while retrieving your account information.")
+        flash("Database error! Please try logging in again", "error")
+        return redirect(url_for('login'))
 
     finally:
         if cursor:
@@ -940,47 +932,37 @@ def account_info():
         if connection:
             connection.close()
 
-@app.route('/feedback')
-@login_required
-def feedback():
-    return render_template('feedback.html')
-
-@app.route('/forgot_password')
+@app.route('/forgot-password')
 def forgot_password():
     return render_template('forgot_password.html')
 
-@app.route('/legal')
+@app.route('/app/product-legal')
 @login_required
-def legal():
-    return render_template('legal.html')
+def product_legal():
+    return render_template('app/product_legal.html')
 
-@app.route('/knowledge-base')
-@login_required
-@restricted_access
-def knowledge_base():
-    return render_template('knowledge_base.html')
-
-@app.route('/brand-voice')
+@app.route('/app/brand-voice')
 @login_required
 @restricted_access
 def brand_voice():
-    return render_template('brand_voice.html')
+    return render_template('app/brand_voice.html')
 
-@app.route('/billing')
+@app.route('/app/billing')
 @login_required
 def billing():
-    return render_template('billing.html')
+    return render_template('app/billing.html')
 
-@app.route('/faq')
-def faq():
-    return render_template('faq.html')
+@app.route('/app/product-faq')
+@login_required
+def product_faq():
+    return render_template('app/product_faq.html')
 
 
 
 
 
 ### ROUTE REQUESTS ###
-@app.route('/view-prompt', methods=['POST'])
+@app.route('/app/view-prompt', methods=['POST'])
 @login_required
 def view_prompt():
     # Get the prompt and category from the form
@@ -1018,9 +1000,10 @@ def view_prompt():
     user_email = current_user.email
     is_admin = user_email in ADMIN_EMAILS  # Replace with actual admin emails
 
-    return render_template('results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
+    return render_template('app/results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
 
-@app.route('/save-brand-voice', methods=['POST'])
+@app.route('/app/save-brand-voice', methods=['POST'])
+@login_required
 def save_brand_voice():
     business_name = session.get('business_name')
     brand_voices = request.form.getlist('brand_voice')  # Get list of selected brand voices
@@ -1052,7 +1035,36 @@ def save_brand_voice():
 
     return redirect(url_for('brand_voice'))
 
-@app.route('/submit-knowledge-instructions', methods=['POST'])
+@app.route('/app/knowledge-base', methods=['GET', 'POST'])
+@login_required
+def knowledge_base():
+    # Get the business name from the session
+    business_name = session.get('business_name')
+
+    # Fetch existing knowledge instructions for the business name
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        query = """
+            SELECT id, knowledge_instructions
+            FROM app.knowledge_base
+            WHERE business_name = %s
+        """
+        cursor.execute(query, (business_name,))
+        instructions = cursor.fetchall()  # List of (id, instruction) tuples
+
+    except Exception as e:
+        flash(f"Error fetching instructions: {e}", "danger")
+        instructions = []
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return render_template('app/knowledge_base.html', instructions=instructions)
+
+@app.route('/app/submit-knowledge-instructions', methods=['POST'])
 @login_required
 def submit_knowledge_instructions():
     knowledge_instructions = request.form['knowledge_instructions']
@@ -1110,7 +1122,39 @@ def submit_knowledge_instructions():
 
     return redirect(url_for('knowledge_base'))
 
-@app.route('/add-link', methods=['GET', 'POST'])
+@app.route('/app/delete-knowledge-instructions', methods=['POST'])
+@login_required
+def delete_knowledge_instructions():
+    instruction_id = request.form['id']
+
+    # SQL query to delete the selected instruction from the table
+    delete_query = """
+        DELETE FROM app.knowledge_base WHERE id = %s
+    """
+
+    try:
+        # Connect to the Postgres CloudSQL database
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Execute the delete query
+        cursor.execute(delete_query, (instruction_id,))
+        connection.commit()
+        flash('Instruction deleted successfully!', 'success')
+
+    except Exception as e:
+        flash(f"Error deleting instruction: {e}", 'danger')
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return redirect(url_for('knowledge_base'))
+
+@app.route('/app/add-link', methods=['GET', 'POST'])
+@login_required
 def add_link():
     if request.method == 'POST':
         url = request.form['url']
@@ -1133,13 +1177,13 @@ def add_link():
             print(f'An error occurred: {e}')
             return redirect(url_for('knowledge_base'))
 
-    return render_template('knowledge_base.html')
+    return redirect(url_for('knowledge_base'))
 
 @app.route('/waitlist', methods=['GET'])
 def waitlist():
     return render_template('waitlist.html')
 
-@app.route('/submit_waitlist', methods=['POST'])
+@app.route('/submit-waitlist', methods=['POST'])
 def submit_waitlist():
     name = request.form['name']
     email = request.form['email']
@@ -1155,31 +1199,7 @@ def submit_waitlist():
 
     return redirect(url_for('waitlist'))
 
-@app.route('/send-feedback', methods=['POST'])
-@login_required
-def send_feedback():
-    # Retrieve form data
-    message_content = request.form.get('message')
-    subject = request.form.get('subject')
-
-    # Validate form data
-    if not message_content or not subject:
-        flash("All fields are required.")
-        return redirect(url_for('feedback'))
-
-    # Send email
-    try:
-        msg = Message(subject=f"{subject}", recipients=["info@lessocialites.com"])
-        msg.body = message_content
-        mail.send(msg)
-        flash("Thank you for your feedback! Your message has been sent.")
-    except Exception as e:
-        flash(f"An error occurred while sending your message: {str(e)}")
-        return redirect(url_for('feedback'))
-
-    return redirect(url_for('feedback'))
-
-@app.route('/forgot_password_submit', methods=['POST'])
+@app.route('/forgot-password-submit', methods=['POST'])
 def forgot_password_submit():
     email = request.form['email']
 
@@ -1213,7 +1233,7 @@ def forgot_password_submit():
     # Redirect to the registration page after deleting the email
     return redirect(url_for('register'))
 
-@app.route('/submit_newsletter', methods=['POST'])
+@app.route('/submit-newsletter', methods=['POST'])
 def submit_newsletter():
     email = request.form['email']
 
@@ -1247,9 +1267,88 @@ def submit_newsletter():
 
 
 
-########## WYZARD MANAGEMENT FOR ADMINS ##########
+
+
+
+
+
+########## WYZARD MARKETING SITE ##########
 
 @app.route('/')
+def homepage():
+    return render_template('homepage.html')
+
+@app.route('/features')
+def features():
+    return render_template('features.html')
+
+@app.route('/case-studies')
+def case_studies():
+    return render_template('case_studies.html')
+
+@app.route('/pricing')
+def pricing():
+    return render_template('pricing.html')
+
+@app.route('/faq')
+def faq():
+    return render_template('faq.html')
+
+@app.route('/blog')
+def blog():
+    return render_template('blog.html')
+
+@app.route('/get-started')
+def get_started():
+    return render_template('get_started.html')
+
+@app.route('/about-us')
+def about_us():
+    return render_template('about_us.html')
+
+@app.route('/contact_us')
+def contact_us():
+    return render_template('contact_us.html')
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
+@app.route('/terms-conditions')
+def terms_conditions():
+    return render_template('terms_conditions.html')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########## WYZARD MANAGEMENT FOR ADMINS ##########
+
+@app.route('/app')
 @login_required
 @restricted_access
 def index():
@@ -1259,9 +1358,9 @@ def index():
                 'Business Developer', 'Plagiarism Checker', 'Influencer Marketing',
                 'Administrative Assistant', 'Accounting', 'Design', 'Personal Assistant',
                 'Content Creation', 'Influencer']
-    return render_template('index.html', categories=categories)
+    return render_template('app/index.html', categories=categories)
 
-@app.route('/submit-prompt', methods=['POST'])
+@app.route('/app/submit-prompt', methods=['POST'])
 @login_required
 @restricted_access
 def submit_prompt():
@@ -1320,9 +1419,9 @@ def submit_prompt():
         if connection:
             connection.close()
 
-    return render_template('index.html')
+    return redirect(url_for('index'))
 
-@app.route('/assign-button-name', methods=['POST'])
+@app.route('/app/assign-button-name', methods=['POST'])
 @login_required
 @restricted_access
 def assign_button_name():
@@ -1361,9 +1460,9 @@ def assign_button_name():
         if connection:
             connection.close()
 
-    return redirect('/delete-prompts')
+    return redirect(url_for('delete_prompts'))
 
-@app.route('/manage-prompts')
+@app.route('/app/manage-prompts')
 @login_required
 @restricted_access
 def manage_prompts():
@@ -1446,7 +1545,7 @@ def manage_prompts():
                 'button_name': button_name
             })
 
-        return render_template('manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
+        return render_template('app/manage_prompts.html', prompts_by_subcategory=prompts_by_subcategory, categories=categories, subcategories=subcategories, selected_category=selected_category, selected_subcategory=selected_subcategory)
 
     except Exception as e:
         print(f"Error: {e}")
@@ -1458,7 +1557,7 @@ def manage_prompts():
         if connection:
             connection.close()
 
-@app.route('/delete-prompt', methods=['POST'])
+@app.route('/app/delete-prompt', methods=['POST'])
 @login_required
 @restricted_access
 def delete_prompt():
@@ -1495,9 +1594,9 @@ def delete_prompt():
         if connection:
             connection.close()
 
-    return redirect('/manage-prompts')
+    return redirect(url_for('manage_prompts'))
 
-@app.route('/edit-prompt', methods=['POST'])
+@app.route('/app/edit-prompt', methods=['POST'])
 @login_required
 @restricted_access
 def edit_prompt():
@@ -1542,9 +1641,9 @@ def edit_prompt():
         if connection:
             connection.close()
 
-    return redirect('/manage-prompts')
+    return redirect(url_for('manage_prompts'))
 
-@app.route('/manage-categories')
+@app.route('/app/manage-categories')
 @login_required
 @restricted_access
 def manage_categories():
@@ -1579,9 +1678,9 @@ def manage_categories():
         if connection:
             connection.close()
 
-    return render_template('manage_categories.html', categories=categories)
+    return render_template('app/manage_categories.html', categories=categories)
 
-@app.route('/manage-subcategories')
+@app.route('/app/manage-subcategories')
 @login_required
 @restricted_access
 def manage_subcategories():
@@ -1615,9 +1714,9 @@ def manage_subcategories():
         if connection:
             connection.close()
 
-    return render_template('manage_subcategories.html', category=category, subcategories=subcategories)
+    return render_template('app/manage_subcategories.html', category=category, subcategories=subcategories)
 
-@app.route('/add-categories', methods=['POST'])
+@app.route('/app/add-categories', methods=['POST'])
 @login_required
 @restricted_access
 def add_categories():
@@ -1655,9 +1754,9 @@ def add_categories():
         if connection:
             connection.close()
 
-    return redirect('/manage-categories')
+    return redirect(url_for('manage_categories'))
 
-@app.route('/add-subcategories', methods=['POST'])
+@app.route('/app/add-subcategories', methods=['POST'])
 @login_required
 @restricted_access
 def add_subcategories():
@@ -1704,9 +1803,9 @@ def add_subcategories():
         if connection:
             connection.close()
 
-    return redirect('/manage-categories')
+    return redirect(url_for('manage_categories'))
 
-@app.route('/edit-category', methods=['POST'])
+@app.route('/app/edit-category', methods=['POST'])
 @login_required
 @restricted_access
 def edit_category():
@@ -1742,9 +1841,9 @@ def edit_category():
         if connection:
             connection.close()
 
-    return redirect('/manage-categories')
+    return redirect(url_for('manage_categories'))
 
-@app.route('/edit-subcategory', methods=['POST'])
+@app.route('/app/edit-subcategory', methods=['POST'])
 @login_required
 @restricted_access
 def edit_subcategory():
@@ -1781,9 +1880,9 @@ def edit_subcategory():
         if connection:
             connection.close()
 
-    return redirect('/manage-categories')
+    return redirect(url_for('manage_categories'))
 
-@app.route('/delete-category', methods=['POST'])
+@app.route('/app/delete-category', methods=['POST'])
 @login_required
 @restricted_access
 def delete_category():
@@ -1814,9 +1913,9 @@ def delete_category():
         if connection:
             connection.close()
 
-    return redirect('/manage-categories')
+    return redirect(url_for('manage_categories'))
 
-@app.route('/delete-subcategory', methods=['POST'])
+@app.route('/app/delete-subcategory', methods=['POST'])
 @login_required
 @restricted_access
 def delete_subcategory():
@@ -1852,9 +1951,9 @@ def delete_subcategory():
         if connection:
             connection.close()
 
-    return redirect('/manage-categories')
+    return redirect(url_for('manage_categories'))
 
-@app.route('/update-instructions', methods=['POST'])
+@app.route('/app/update-instructions', methods=['POST'])
 @login_required
 @restricted_access
 def update_instructions():
@@ -1890,9 +1989,9 @@ def update_instructions():
         if connection:
             connection.close()
 
-    return redirect('/')
+    return redirect(url_for('index'))
 
-@app.route('/manage-knowledge-base', methods=['GET', 'POST'])
+@app.route('/app/manage-knowledge-base', methods=['GET', 'POST'])
 @login_required
 @restricted_access
 def manage_knowledge_base():
@@ -1937,13 +2036,13 @@ def manage_knowledge_base():
             connection.close()
 
     return render_template(
-        'manage_knowledge_base.html',
+        'app/manage_knowledge_base.html',
         knowledge_instructions=knowledge_instructions,
         business_names=business_names,
         selected_business_name=selected_business_name
     )
 
-@app.route('/submit-knowledge', methods=['POST'])
+@app.route('/app/submit-knowledge', methods=['POST'])
 @login_required
 @restricted_access
 def submit_knowledge():
@@ -1979,7 +2078,7 @@ def submit_knowledge():
 
     return redirect(url_for('manage_knowledge_base', business_name=business_name))
 
-@app.route('/delete-knowledge', methods=['POST'])
+@app.route('/app/delete-knowledge', methods=['POST'])
 @login_required
 @restricted_access
 def delete_knowledge():
@@ -1998,10 +2097,10 @@ def delete_knowledge():
         # Execute the delete query
         cursor.execute(delete_query, (instruction_id,))
         connection.commit()
+        flash('Instruction deleted successfully!', 'success')
 
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred while deleting knowledge: {e}", 500
+        flash(f"Error deleting instruction: {e}", 'danger')
 
     finally:
         if cursor:
@@ -2012,4 +2111,4 @@ def delete_knowledge():
     return redirect(url_for('manage_knowledge_base'))
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True)

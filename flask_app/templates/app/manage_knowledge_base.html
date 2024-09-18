@@ -17,17 +17,15 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
@@ -38,7 +36,7 @@
         }
 
         .container {
-            max-width: calc(100% - 500px); /* Adjust max-width for 250px margins */
+            max-width: calc(100% - 500px);
             margin-left: 250px;
             margin-right: 250px;
             padding: 20px;
@@ -140,9 +138,9 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
 
     <div class="wrapper">
         <div class="container">
@@ -150,7 +148,7 @@
 
             <!-- Filter Form to Select Business Name -->
             <div class="card">
-                <form action="/manage-knowledge-base" method="GET">
+                <form action="{{ url_for('manage_knowledge_base') }}" method="GET">
                     <div class="mb-3">
                         <label for="filter_business_name" class="form-label">Filter by Business Name:</label>
                         <select id="filter_business_name" name="filter_business_name" class="form-control">
@@ -166,7 +164,7 @@
 
             <!-- Form to Submit New Knowledge Instruction -->
             <div class="card">
-                <form action="/submit-knowledge" method="POST">
+                <form action="{{ url_for('submit_knowledge') }}" method="POST">
                     <div class="mb-3">
                         <label for="business_name" class="form-label">Select Business Name:</label>
                         <select id="business_name" name="business_name" class="form-control" required>
@@ -190,7 +188,7 @@
                         <p>ID: {{ instruction.id }}</p>
                         <p>Business Name: {{ instruction.business_name }}</p>
                         <p>{{ instruction.knowledge_instructions }}</p>
-                        <form action="/delete-knowledge" method="POST">
+                        <form action="{{ url_for('delete_knowledge') }}" method="POST">
                             <input type="hidden" name="id" value="{{ instruction.id }}">
                             <button type="submit">Delete</button>
                         </form>
@@ -204,7 +202,7 @@
                 <a href="/" class="btn-secondary">Back to Home</a>
             </div>
         </div>
-        {% include 'top_menu.html' %}
+        {% include 'app/product_footer.html' %}
     </div>
 </body>
 </html>

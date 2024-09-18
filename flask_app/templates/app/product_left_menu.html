@@ -1,12 +1,11 @@
-<!-- left_menu.html -->
 <nav class="left-menu">
     <ul>
-        <li><a href="/prompt-categories">Pick AI Assistant</a></li>
+        <li><a href="{{ url_for('prompt_categories') }}">Pick AI Assistant</a></li>
         <li class="dropdown">
             <a href="#" class="dropbtn">Settings</a>
             <div class="dropdown-content">
-                <a href="/knowledge-base">Knowledge Base</a>
-                <a href="/brand-voice">Brand Voice</a>
+                <a href="{{ url_for('knowledge_base') }}">Knowledge Base</a>
+                <a href="{{ url_for('brand_voice') }}">Brand Voice</a>
             </div>
         </li>
     </ul>

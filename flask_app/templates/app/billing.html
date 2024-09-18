@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAQ</title>
+    <title>Billing</title>
     <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
     <style>
         body {
@@ -11,8 +11,8 @@
             margin: 0;
             padding: 20px;
             padding-bottom: 80px;
-            background-color: #e0e0e0;
-            color: #121212;
+            background-color: #121212;
+            color: #e0e0e0;
         }
         .placeholder-container {
             display: flex;
@@ -25,8 +25,14 @@
     </style>
 </head>
 <body>
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
+
     <div class="placeholder-container">
         Placeholder
     </div>
+
+    {% include 'app/product_footer.html' %}
 </body>
 </html>

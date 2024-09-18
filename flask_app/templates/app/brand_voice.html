@@ -17,17 +17,15 @@
             color: #e0e0e0;
         }
 
-        /* Wrapper for the main content and footer */
         .wrapper {
-            flex: 1; /* Allows this section to grow and fill the available space */
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Pushes footer to the bottom if content is short */
+            justify-content: space-between;
         }
 
-        /* Main content styles */
         .main-content {
-            flex: 1; /* Take up remaining space above the footer */
+            flex: 1;
             padding: 0px;
         }
 
@@ -99,9 +97,9 @@
     </style>
 </head>
 <body>
-    {% include 'top_menu.html' %}
-    {% include 'logo.html' %}
-    {% include 'left_menu.html' %}
+    {% include 'app/product_top_menu.html' %}
+    {% include 'app/product_logo.html' %}
+    {% include 'app/product_left_menu.html' %}
 
     <div class="wrapper">
         <div class="flash-messages">
@@ -115,7 +113,7 @@
         </div>
         <div class="form-container">
             <h1>Select Your Brand Voice</h1>
-            <form action="/save-brand-voice" method="POST">
+            <form action="{{ url_for('save_brand_voice') }}" method="POST">
                 <label for="brand_voice" class="form-label">Choose Brand Voice(s):</label>
                 <select id="brand_voice" name="brand_voice" class="form-control" multiple required>
                     <option value="Funny">Funny</option>
@@ -132,7 +130,7 @@
                 <button type="submit" class="submit-button">Save Brand Voice</button>
             </form>
         </div>
-        {% include 'footer.html' %}
+        {% include 'app/product_footer.html' %}
     </div>
 </body>
 </html>
