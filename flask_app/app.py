@@ -160,25 +160,16 @@ def extract_text_from_file(file):
         text = " ".join(paragraph.text for paragraph in doc.paragraphs)
     return sanitize_content(text)
 
-def get_openai_assistant_response(openai_client, conversation=None, category=None):
+def get_openai_assistant_response(openai_client, conversation=None):
     user_id = current_user.id
     session_id = session.sid
     business_name = session.get('business_name')
-
-    brand_voice = get_brand_voice(business_name)
-
-    if brand_voice is None:
-        brand_voice_instructions = ""
-    else:
-        brand_voice_instructions = f"Brand Voice Instructions: When answering the prompt please make all content you are giving me respect this tone of voice: {brand_voice} writing style"
 
     if conversation is None:
         conversation = load_conversation_from_db(user_id, session_id)
 
     # Check if the conversation is just starting and hasn't added system instructions yet
     if 'system' not in [message['role'] for message in conversation]:
-
-        default_instructions = "There are no specific instructions."
 
         instructions = ""
 
@@ -199,20 +190,6 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
                 if knowledge_result and knowledge_result[0]:
                     instructions += "Knowledge Base Instructions: " + knowledge_result[0] + " "
 
-            # Fetch category-specific instructions from Postgres
-            if category:
-                category_query = """
-                    SELECT instructions
-                    FROM app.prompts
-                    WHERE category = %s
-                    LIMIT 1
-                """
-                cursor.execute(category_query, (category,))
-                category_result = cursor.fetchone()
-
-                if category_result and category_result[0]:
-                    instructions += "Category-specific Instructions: " + category_result[0] + " "
-
         except Exception as e:
             print(f"Error: {e}")
         finally:
@@ -221,81 +198,34 @@ def get_openai_assistant_response(openai_client, conversation=None, category=Non
             if connection:
                 connection.close()
 
+        brand_voice = get_brand_voice(business_name)
+
+        if brand_voice is None:
+            brand_voice_instructions = ""
+        else:
+            brand_voice_instructions = f"""Brand Voice Instructions:
+            When answering the prompt, please make all content you are giving me respect this tone of voice: {brand_voice}."""
+
         instructions += brand_voice_instructions
 
-        # If no instructions were found, use the default instructions
-        if not instructions:
-            instructions = default_instructions + brand_voice_instructions
-        else:
-            # Prepend context to the instructions
-            instructions = f"""
-            Every time you get a new prompt, you will potentially receive 3 different sets of instructions for it:
+        # Prepend context to the instructions
+        instructions = f"""
+        At the beginning of the conversation, you will receive 2 sets of instructions for answering subsequent prompts:
 
-            1.Knowledge Base Instructions, 2.Category-specific Instructions, and 3.Brand Voice Instructions.
+        1) Knowledge Base Instructions and 2) Brand Voice Instructions.
 
-            Here is how to prioritize those instructions: 1, 2, 3.
+        Prioritize those instructions in this order: 1) then 2).
 
-            {instructions}
-            """
+        {instructions}
+        """
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
         save_conversation_to_db(user_id, session_id, 'system', sanitized_instructions)
 
-    # Workflow for if the conversation already has instructions
-    else:
-        if category:
-            # Initialize the instructions variable
-            instructions = ""
-
-            try:
-                # Establish the connection to the Postgres CloudSQL instance
-                connection = get_connection()
-                cursor = connection.cursor()
-
-                # Fetch category-specific instructions from Postgres
-                category_query = """
-                    SELECT instructions
-                    FROM app.prompts
-                    WHERE category = %s
-                    LIMIT 1
-                """
-                cursor.execute(category_query, (category,))
-                category_result = cursor.fetchone()
-
-                if category_result and category_result[0]:
-
-                    instructions += "Category-specific Instructions: " + category_result[0] + " "
-
-                    instructions += brand_voice_instructions
-
-                    instructions = f"""
-                    Every time you get a new prompt, you will potentially receive 3 different sets of instructions for it:
-
-                    1.Knowledge Base Instructions, 2.Category-specific Instructions, and 3.Brand Voice Instructions.
-
-                    Here is how to prioritize those instructions: 1, 2, 3.
-
-                    {instructions}
-                    """
-
-                    # Sanitize the instructions and add them to the conversation
-                    sanitized_instructions = sanitize_text(instructions)
-                    save_conversation_to_db(user_id, session_id, 'system', sanitized_instructions)
-
-            except Exception as e:
-                print(f"Error: {e}")
-            finally:
-                if cursor:
-                    cursor.close()
-                if connection:
-                    connection.close()
-
     # Call the OpenAI API with the entire conversation
     try:
         conversation = load_conversation_from_db(user_id, session_id)
-
-        print(conversation)
 
         response = openai_client.chat.completions.create(
             model="gpt-4o",
@@ -974,7 +904,6 @@ def product_faq():
 def view_prompt():
     # Get the prompt and category from the form
     prompt = request.form['prompt']
-    category = request.form.get('category')
 
     # Generate or get session_id and user_id
     user_id = current_user.id
@@ -990,8 +919,8 @@ def view_prompt():
     # Save the user's prompt to the database
     save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
 
-    # Get the response from OpenAI, passing the category
-    response = get_openai_assistant_response(openai_client, category=category)
+    # Get the response from OpenAI
+    response = get_openai_assistant_response(openai_client)
     formatted_response = markdown(response)
 
     # Save the assistant's response to the database
@@ -1005,7 +934,7 @@ def view_prompt():
 
     # Check if the user is an admin
     user_email = current_user.email
-    is_admin = user_email in ADMIN_EMAILS  # Replace with actual admin emails
+    is_admin = user_email in ADMIN_EMAILS
 
     return render_template('app/results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
 
@@ -1959,44 +1888,6 @@ def delete_subcategory():
             connection.close()
 
     return redirect(url_for('manage_categories'))
-
-@app.route('/app/update-instructions', methods=['POST'])
-@login_required
-@restricted_access
-def update_instructions():
-    category = request.form['category']
-    new_instructions = request.form['instructions']
-
-    if not category or not new_instructions:
-        return "Category and Instructions cannot be empty", 400
-
-    # SQL query to update the instructions for the selected category
-    update_query = """
-        UPDATE app.prompts
-        SET instructions = %s
-        WHERE category = %s
-    """
-
-    try:
-        # Connect to the Postgres CloudSQL database
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Execute the update query
-        cursor.execute(update_query, (new_instructions, category))
-        connection.commit()
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred while updating instructions: {e}", 500
-
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-    return redirect(url_for('index'))
 
 @app.route('/app/manage-knowledge-base', methods=['GET', 'POST'])
 @login_required
