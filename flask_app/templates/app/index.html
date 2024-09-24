@@ -175,27 +175,6 @@
                             </form>
                         </div>
                     </div>
-                    <!-- Option to Update Instructions -->
-                    <div class="card mb-4">
-                        <div class="card-body">
-                            <h5 class="card-title">🔄 Update Instructions 🔄</h5>
-                            <form action="{{ url_for('update_instructions') }}" method="POST">
-                                <div class="mb-3">
-                                    <label for="category" class="form-label">Select Your Category:</label>
-                                    <select class="form-control" id="category" name="category" required>
-                                        {% for category in categories %}
-                                            <option value="{{ category }}">{{ category }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="instructions" class="form-label">Enter New Instructions:</label>
-                                    <textarea class="form-control" id="instructions" name="instructions" rows="4" required></textarea>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Update Instructions</button>
-                            </form>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
