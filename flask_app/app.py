@@ -542,10 +542,8 @@ def register():
         "ruth@lessocialites.com",
         "imen@lessocialites.com",
         "felix@lessocialites.com",
-        "karen@lessocialites.com",
         "ari@lessocialites.com",
-        "genevieve.beaudry@gmail.com",
-        "felix@lessocialites.com"
+        "genevieve.beaudry@gmail.com"
     ]
 
     if request.method == 'POST':
