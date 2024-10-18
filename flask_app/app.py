@@ -306,7 +306,7 @@ def get_categories_for_business_type(business_type):
         "Transportation": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
         "Utilities": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
         "Wellness and Fitness": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
-        "Les Socialites": ["Accounting", "Administrative Assistant", "Business Developer", "Content Creation", "Customer Service", "Data Analyst", "Design", "Event Planning", "HR", "Humanizer", "Influencer", "Influencer Marketing", "Legal Advisor", "Marketing", "Multi-Channel Campaign", "Plagiarism Checker", "PR", "Project Manager", "Sales", "SEO", "Social Media", "Spellcheck/Translation", "Personal Assistant", "Web", "eCommerce"]
+        "Les Socialites": ["Accounting", "Administrative Assistant", "Business Developer", "Content Creation", "Customer Service", "Data Analyst", "Design", "Event Planning", "HR", "Humanizer", "Influencer", "Influencer Marketing", "Legal Advisor", "Marketing", "Multi-Channel Campaign", "Plagiarism Checker", "PR", "Project Manager", "Sales", "Social Media", "Spellcheck/Translation", "Personal Assistant", "Web", "eCommerce"]
     }
 
     # Return the categories for the selected business type
@@ -543,7 +543,11 @@ def register():
         "imen@lessocialites.com",
         "felix@lessocialites.com",
         "ari@lessocialites.com",
-        "genevieve.beaudry@gmail.com"
+        "gladys@lessocialites.com",
+        "michael@lessocialites.com",
+        "genevieve.beaudry@gmail.com",
+        "team@lessocialites.com",
+        "test@lessocialites.com"
     ]
 
     if request.method == 'POST':
@@ -611,11 +615,7 @@ def register():
         flash("Registration successful! Please log in.", "success")
         return redirect(url_for('login'))
 
-    # Check if the user should see "Les Socialites" as a business type option based on the domain
-    email = request.args.get('email', '')
-    is_socialites_whitelisted = "lessocialites.com" in email
-
-    return render_template('register.html', is_socialites_whitelisted=is_socialites_whitelisted)
+    return render_template('register.html')
 
 @app.route('/app/clear-conversation')
 @login_required
@@ -701,9 +701,23 @@ def results():
 
     conversation = load_conversation_from_db(user_id, session_id)
 
+    # Process each message to separate code blocks and text
     for message in conversation:
-        if message['role'] == 'assistant':
-            message['content'] = markdown(message['content'])
+        if '```' in message['content']:
+            # Split the content by triple backticks to isolate code blocks
+            parts = message['content'].split('```')
+            formatted_parts = []
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    # Non-code part, process as markdown
+                    formatted_parts.append({'type': 'text', 'content': markdown(part)})
+                else:
+                    # Code block
+                    formatted_parts.append({'type': 'code', 'content': part})
+            message['content_parts'] = formatted_parts
+        else:
+            # No code blocks, process entire message as markdown
+            message['content_parts'] = [{'type': 'text', 'content': markdown(message['content'])}]
 
     business_type = session.get('business_type', 'No business type selected')
 
@@ -797,7 +811,6 @@ def prompt_categories():
         "Spellcheck/Translation": "✍️",
         "Multi-Channel Campaign": "💌",
         "HR": "💼",
-        "SEO": "🔍",
         "Humanizer": "🧠",
         "eCommerce": "🛒",
         "Data Analyst": "📊",
@@ -900,7 +913,7 @@ def product_faq():
 @app.route('/app/view-prompt', methods=['POST'])
 @login_required
 def view_prompt():
-    # Get the prompt and category from the form
+    # Get the prompt from the form
     prompt = request.form['prompt']
 
     # Generate or get session_id and user_id
@@ -919,22 +932,45 @@ def view_prompt():
 
     # Get the response from OpenAI
     response = get_openai_assistant_response(openai_client)
-    formatted_response = markdown(response)
 
-    # Save the assistant's response to the database
+    # Split the response content by code blocks and markdown it
+    if '```' in response:
+        parts = response.split('```')
+        formatted_parts = []
+        for i, part in enumerate(parts):
+            if i % 2 == 0:
+                # Non-code part, process as markdown
+                formatted_parts.append({'type': 'text', 'content': markdown(part)})
+            else:
+                # Code block, leave as it is
+                formatted_parts.append({'type': 'code', 'content': part})
+    else:
+        # If no code blocks, process the entire response as markdown
+        formatted_parts = [{'type': 'text', 'content': markdown(response)}]
+
+    # Save the assistant's response to the database (original response, not split)
     save_conversation_to_db(user_id, session_id, 'assistant', response)
 
     conversation = load_conversation_from_db(user_id, session_id)
 
+    # Process the conversation for the results page
     for message in conversation:
-        if message['role'] == 'assistant':
-            message['content'] = markdown(message['content'])
+        if message['role'] == 'assistant' and '```' in message['content']:
+            parts = message['content'].split('```')
+            message['content_parts'] = []
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    message['content_parts'].append({'type': 'text', 'content': markdown(part)})
+                else:
+                    message['content_parts'].append({'type': 'code', 'content': part})
+        else:
+            message['content_parts'] = [{'type': 'text', 'content': markdown(message['content'])}]
 
     # Check if the user is an admin
     user_email = current_user.email
     is_admin = user_email in ADMIN_EMAILS
 
-    return render_template('app/results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
+    return render_template('app/results.html', prompt=prompt, response=response, conversation=conversation, is_admin=is_admin)
 
 @app.route('/app/save-brand-voice', methods=['POST'])
 @login_required
@@ -1287,7 +1323,7 @@ def terms_conditions():
 @restricted_access
 def index():
     categories = ['Sales', 'Marketing', 'PR', 'Social Media', 'Web', 'Legal Advisor', 'Event Planning',
-                'Spellcheck/Translation', 'Multi-Channel Campaign', 'HR', 'SEO', 'Humanizer',
+                'Spellcheck/Translation', 'Multi-Channel Campaign', 'HR', 'Humanizer',
                 'eCommerce', 'Data Analyst', 'Project Manager', 'Customer Service', 'Business',
                 'Business Developer', 'Plagiarism Checker', 'Influencer Marketing',
                 'Administrative Assistant', 'Accounting', 'Design', 'Personal Assistant',
