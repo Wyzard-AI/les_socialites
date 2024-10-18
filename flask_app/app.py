@@ -12,17 +12,15 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import secretmanager
 from google.cloud.sql.connector import Connector, IPTypes
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from pypdf import PdfReader
 from docx import Document
 from markdown2 import markdown
 from urllib.parse import urljoin, urlparse
 
-from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
-from flask_mail import Mail, Message
+from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_session import Session
 
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -723,6 +721,12 @@ def results():
 
     return render_template('app/results.html', conversation=conversation, business_type=business_type)
 
+@app.route('/app/conversations')
+@login_required
+@restricted_access
+def conversations():
+    return render_template('app/conversations.html')
+
 @app.route('/app/prompt-menu')
 @login_required
 def prompt_menu():
@@ -910,6 +914,34 @@ def product_faq():
 
 
 ### ROUTE REQUESTS ###
+@app.route('/get_prompts', methods=['GET'])
+def get_prompts():
+    # Establish a database connection
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Query to fetch prompts from your table
+    query = """
+    SELECT category, subcategory, button_name
+    FROM app.prompts
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+
+    # Format the data as a dictionary
+    prompts = {}
+    for row in rows:
+        category, subcategory, button_name = row
+        if category not in prompts:
+            prompts[category] = {}
+        if subcategory not in prompts[category]:
+            prompts[category][subcategory] = []
+        prompts[category][subcategory].append(button_name)
+
+    cursor.close()
+    conn.close()
+    return jsonify(prompts)
+
 @app.route('/app/view-prompt', methods=['POST'])
 @login_required
 def view_prompt():

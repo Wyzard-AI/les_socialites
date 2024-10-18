@@ -1,0 +1,424 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background-color: #2c2c2c;
+  min-height: 100%;
+  /* Ensure the body takes the full height */
+  overflow-x: hidden;
+  /* Prevent horizontal scrolling */
+  max-width: 100%;
+  overflow-y: auto;
+}
+
+header {
+  background-color: #1e1e1e;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1200;
+  border-bottom: 1px solid #333;
+}
+header .hamburger-menu {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  z-index: 1100;
+  /* Ensure hamburger menu stays on top */
+}
+header .hamburger-menu .line {
+  width: 30px;
+  height: 3px;
+  background-color: #fff;
+  /* White lines for hamburger menu */
+  margin: 4px 0;
+}
+header .logo {
+  display: flex;
+  align-items: center;
+  margin-left: 30px;
+  /* Adjust margin as needed */
+  margin-right: 10px;
+  /* Adjust margin as needed */
+}
+header .logo .logo-img {
+  width: 80px;
+  /* Adjust this value for desired width */
+  height: auto;
+  /* Maintain aspect ratio */
+  margin-right: 5px;
+  /* Space between the logo image and the text */
+}
+header .logo span {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: bold;
+}
+header nav {
+  position: relative;
+  /* Ensure nav is positioned relative */
+  z-index: 3000;
+  /* Ensure nav items stay below the hamburger menu */
+  margin-left: auto;
+  /* Push nav items to the far right */
+}
+header nav .nav-list {
+  list-style: none;
+  display: flex;
+  margin: 0;
+  padding: 0;
+}
+header nav .nav-list .nav-item {
+  position: relative;
+  margin-left: 30px;
+  /* Specific styles for Account dropdown */
+}
+header nav .nav-list .nav-item a {
+  color: #ffffff;
+  /* White font color */
+  text-decoration: none;
+  font-size: 18px;
+}
+header nav .nav-list .nav-item a:hover {
+  cursor: pointer;
+  background-color: #333;
+}
+header nav .nav-list .nav-item .dropdown {
+  display: none;
+  position: absolute;
+  background-color: #1e1e1e;
+  /* Dropdown color */
+  list-style: none;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  padding: 10px;
+  border-radius: 5px;
+  z-index: 4000;
+}
+header nav .nav-list .nav-item .dropdown li {
+  padding: 10px 15px;
+  color: #ffffff;
+}
+header nav .nav-list .nav-item .dropdown li:hover {
+  background-color: #333;
+  /* Dark hover effect */
+}
+header nav .nav-list .nav-item:hover .dropdown {
+  display: block;
+}
+header nav .nav-list .nav-item .account-dropdown {
+  left: auto;
+  /* Reset left position */
+  right: 0;
+  /* Align to the right edge of the screen */
+}
+
+.side-menu {
+  position: fixed;
+  top: 0;
+  left: -100%;
+  width: 20%;
+  height: 100%;
+  background-color: #000;
+  /* Black background for the menu */
+  color: #fff;
+  padding: 20px;
+  transition: left 0.2s ease-in-out;
+  /* Smoother transition with ease-in-out */
+  z-index: 1000;
+}
+.side-menu.active {
+  left: 0;
+  /* Slide in when active */
+  z-index: 1100;
+}
+.side-menu .close-menu {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: transparent;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+}
+.side-menu .logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  /* Space below the logo */
+}
+.side-menu .logo .logo-img {
+  width: 120px;
+  /* Adjust size as needed */
+  height: auto;
+  /* Maintain aspect ratio */
+}
+.side-menu ul {
+  list-style: none;
+  padding: 0;
+}
+.side-menu ul li {
+  margin: 20px 0;
+  font-size: 18px;
+}
+
+.assistance-box {
+  position: relative;
+  width: 25%;
+  background-color: #1e1e1e;
+  padding: 20px;
+  margin-left: 20px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  color: #ffffff;
+  text-align: center;
+  font-size: 16px;
+  min-height: 76vh;
+  top: 15vh;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+.assistance-box .spacer-assistance-box {
+  background-color: #2c2c2c;
+  height: 1vh;
+  position: relative;
+  top: 35vh;
+}
+.assistance-box .assistant-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+.assistance-box .assistant-buttons div.button {
+  font-size: 14px;
+  position: relative;
+  width: 100%;
+  max-width: 200px;
+  cursor: pointer;
+  background-color: #1e1e1e;
+  border-radius: 10px;
+  transition: background-color 0.3s ease;
+  text-align: left;
+}
+.assistance-box .assistant-buttons div.button:hover {
+  background-color: #8a2be2;
+}
+.assistance-box .assistant-buttons div.button .submenu {
+  background-color: #1e1e1e;
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 95%;
+  border-radius: 5px;
+  min-width: 150px;
+  z-index: 1;
+  border: 2px solid white;
+}
+.assistance-box .assistant-buttons div.button .submenu div.submenu-item {
+  font-size: 13px;
+}
+.assistance-box .assistant-buttons div.button .submenu a {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  font-size: 13px;
+  text-align: center;
+  display: block;
+  color: #ffffff;
+  text-decoration: none;
+  transition: background-color 0.3s ease;
+  border-radius: 0px;
+}
+.assistance-box .assistant-buttons div.button .submenu a:hover {
+  background-color: #8a2be2;
+}
+.assistance-box .assistant-buttons div.button:hover .submenu {
+  display: block;
+}
+.assistance-box .assistant-buttons div.button .submenu-item {
+  position: relative;
+}
+.assistance-box .assistant-buttons div.button .submenu-item:hover .sub-submenu {
+  display: block;
+}
+.assistance-box .assistant-buttons div.button .submenu-item .sub-submenu {
+  font-size: 13px;
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  background-color: #1e1e1e;
+  border-radius: 5px;
+  min-width: 150px;
+  border: 2px solid white;
+}
+.assistance-box .assistant-buttons div.button .submenu-item .sub-submenu div.submenu-item {
+  font-size: 12px;
+}
+.assistance-box .assistant-buttons div.button .submenu-item .sub-submenu div.submenu-item a {
+  font-size: 13px;
+}
+.assistance-box .assistant-buttons div.button .submenu-item .sub-submenu a {
+  font-size: 13px;
+  display: block;
+  color: #ffffff;
+  text-decoration: none;
+  transition: background-color 0.3s ease;
+}
+.assistance-box .assistant-buttons div.button .submenu-item .sub-submenu a:hover {
+  background-color: #8a2be2;
+}
+.assistance-box .assistant-buttons a {
+  display: block;
+  color: #ffffff;
+  text-decoration: none;
+  width: 100%;
+  max-width: 400px;
+  background-color: #1e1e1e;
+  border-radius: 10px;
+  transition: background-color 0.3s ease;
+  text-align: left;
+}
+.assistance-box .assistant-buttons a:hover {
+  background-color: #8a2be2;
+}
+
+.chat-section-left-padding {
+  width: 25%;
+  background-color: rgba(255, 0, 0, 0);
+  padding: 20px;
+  border-radius: 10px;
+  color: #ffffff;
+  text-align: center;
+  font-size: 16px;
+  max-height: 100vh;
+  position: sticky;
+  top: 10vh;
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+.chat-container {
+  position: absolute;
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+  background-color: #2c2c2c;
+  height: auto;
+  /* Ensure the container takes full viewport height */
+  width: 98vw;
+  z-index: 50;
+  top: 11.5vh;
+}
+
+.chat-section {
+  width: 70%;
+  display: flex;
+  flex-direction: column;
+  padding-right: 20px;
+  margin-left: 20px;
+  height: auto;
+}
+.chat-section .chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1e1e1e;
+  padding: 10px 20px;
+  border-radius: 10px;
+  color: #ffffff;
+}
+.chat-section .chat-messages {
+  background-color: #1e1e1e;
+  margin: 20px 0;
+  padding: 20px;
+  border-radius: 10px;
+  color: #ffffff;
+  flex-grow: 1;
+}
+.chat-section .chat-messages .message {
+  margin-bottom: 15px;
+}
+.chat-section .chat-messages .message .bot-sender {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #ffffff;
+}
+.chat-section .chat-messages .message .text {
+  background-color: #8a2be2;
+  padding: 10px;
+  border-radius: 10px;
+  color: #ffffff;
+}
+.chat-section .chat-messages .message-user {
+  margin-bottom: 15px;
+}
+.chat-section .chat-messages .message-user .user-sender {
+  text-align: end;
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #ffffff;
+}
+.chat-section .chat-messages .message-user .text {
+  text-align: end;
+  background-color: #8a2be2;
+  padding: 10px;
+  border-radius: 10px;
+  color: #ffffff;
+}
+.chat-section .chat-input {
+  display: flex;
+  background-color: #1e1e1e;
+  border-radius: 10px;
+  padding: 5px;
+}
+.chat-section .chat-input .conteneur_upload {
+  padding-top: 5px;
+  padding-left: 5px;
+  font-size: 12px;
+  color: white;
+}
+.chat-section .chat-input .conteneur_upload .image_upload {
+  padding-top: 5px;
+  padding-left: 15px;
+  width: 30px;
+  height: 30px;
+}
+.chat-section .chat-input input {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  margin-right: 10px;
+  background-color: #1e1e1e;
+  color: #ffffff;
+}
+.chat-section .chat-input .send-btn {
+  background-color: #8a2be2;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+}
+.chat-section .chat-input .send-btn:hover {
+  background-color: #7b1fa2;
+}
+.chat-section .chat-input .send-btn .arrow-icon {
+  width: 24px;
+  height: 24px;
+  transition: stroke 0.3s ease;
+}/*# sourceMappingURL=style.css.map */
