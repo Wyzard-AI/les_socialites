@@ -382,6 +382,45 @@ def get_brand_voice(business_name):
         if connection:
             connection.close()
 
+def pass_prompt_to_retrieve_openai_assistant_response(prompt, file=None):
+    # Generate or get session_id and user_id
+    user_id = current_user.id
+    session_id = session.sid
+
+    # If a file is provided, extract its content
+    if file and file.filename != '' and allowed_file(file.filename):
+        file_text = extract_text_from_file(file)
+        prompt += "\n\n" + file_text
+
+    modified_prompt = f"Please answer the following prompt: {prompt}"
+
+    # Save the user's prompt to the database
+    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
+
+    # Get the response from OpenAI
+    response = get_openai_assistant_response(modified_prompt)
+
+    # Save the assistant's response to the database (original response, not split)
+    save_conversation_to_db(user_id, session_id, 'assistant', response)
+
+    # Load the entire conversation from the database for this session
+    conversation = load_conversation_from_db(user_id, session_id)
+
+    # Process the conversation for rendering
+    for message in conversation:
+        if message['role'] == 'assistant' and '```' in message['content']:
+            parts = message['content'].split('```')
+            message['content_parts'] = []
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    message['content_parts'].append({'type': 'text', 'content': markdown(part)})
+                else:
+                    message['content_parts'].append({'type': 'code', 'content': part})
+        else:
+            message['content_parts'] = [{'type': 'text', 'content': markdown(message['content'])}]
+
+    return conversation
+
 
 
 
@@ -511,7 +550,7 @@ def login():
                 login_user(user)
                 session['business_name'] = user.business_name
                 session['business_type'] = user.business_type
-                return redirect(url_for('prompt_categories'))  # Redirect to the desired default page
+                return redirect(url_for('conversations'))  # Redirect to the desired default page
             else:
                 flash("Email or password is incorrect.")
                 return redirect(url_for('login'))
@@ -725,7 +764,8 @@ def results():
 @login_required
 @restricted_access
 def conversations():
-    return render_template('app/conversations.html')
+    is_admin = current_user.email in ADMIN_EMAILS
+    return render_template('app/conversations.html', is_admin=is_admin)
 
 @app.route('/app/prompt-menu')
 @login_required
@@ -915,17 +955,28 @@ def product_faq():
 
 ### ROUTE REQUESTS ###
 @app.route('/get_prompts', methods=['GET'])
+@login_required
 def get_prompts():
+    # Get the business type from the session
+    business_type = session.get('business_type')
+
+    if not business_type:
+        return jsonify({"error": "Business type not found in session"}), 400
+
+    # Get the allowed categories for the business type
+    allowed_categories = get_categories_for_business_type(business_type)
+
     # Establish a database connection
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Query to fetch prompts from your table
+    # Query to fetch prompts from your table, filtering by the allowed categories
     query = """
     SELECT category, subcategory, button_name
     FROM app.prompts
+    WHERE category = ANY(%s)
     """
-    cursor.execute(query)
+    cursor.execute(query, (allowed_categories,))
     rows = cursor.fetchall()
 
     # Format the data as a dictionary
@@ -941,6 +992,43 @@ def get_prompts():
     cursor.close()
     conn.close()
     return jsonify(prompts)
+
+@app.route('/get_prompt_for_openai_assistant_response', methods=['GET'])
+@login_required
+def get_prompt_for_openai_assistant_response():
+    category = request.args.get('category')
+    subcategory = request.args.get('subcategory')
+    button_name = request.args.get('button_name')
+
+    if not (category and subcategory and button_name):
+        return jsonify({"error": "Invalid parameters"}), 400
+
+    # Establish a database connection
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Query to fetch the prompt for the given category, subcategory, and button_name
+    query = """
+    SELECT prompt
+    FROM app.prompts
+    WHERE category = %s AND subcategory = %s AND button_name = %s
+    """
+    cursor.execute(query, (category, subcategory, button_name))
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if row:
+        prompt = row[0]
+
+        # Pass the prompt to the assistant response function
+        conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
+
+        return jsonify({"conversation": conversation})
+    else:
+        return jsonify({"error": "Prompt not found"}), 404
+
 
 @app.route('/app/view-prompt', methods=['POST'])
 @login_required

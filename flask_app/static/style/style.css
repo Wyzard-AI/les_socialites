@@ -381,13 +381,13 @@ header nav .nav-list .nav-item .account-dropdown {
   border-radius: 10px;
   padding: 5px;
 }
-.chat-section .chat-input .conteneur_upload {
+.chat-section .chat-input .container-upload {
   padding-top: 5px;
   padding-left: 5px;
   font-size: 12px;
   color: white;
 }
-.chat-section .chat-input .conteneur_upload .image_upload {
+.chat-section .chat-input .container-upload .image_upload {
   padding-top: 5px;
   padding-left: 15px;
   width: 30px;

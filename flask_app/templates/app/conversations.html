@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Header with Hamburger Menu</title>
+    <title>Conversations</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style/style.css') }}">
 </head>
 
-<body>
+<body data-is-admin="{{ 'true' if is_admin else 'false' }}">
     <header>
         <div class="logo">
             <img src="{{ url_for('static', filename='wyzard_favicon.png') }}" alt="Logo" class="logo-img">
@@ -18,20 +18,20 @@
                 <li class="nav-item">
                     <a href="#" aria-haspopup="true" aria-expanded="false">Settings</a>
                     <ul class="dropdown account-dropdown">
-                        <li>Knowledge Base</li>
-                        <li>Brand Voice</li>
+                        <li><a href="{{ url_for('knowledge_base') }}">Knowledge Base</a></li>
+                        <li><a href="{{ url_for('brand_voice') }}">Brand Voice</a></li>
                     </ul>
                 </li>
                 <li class="nav-item">
                     <a href="#" aria-haspopup="true" aria-expanded="false">Account</a>
                     <ul class="dropdown account-dropdown">
-                        <li>Account Info</li>
-                        <li>Request Help</li>
-                        <li>Billing</li>
-                        <li>Suggest Feature</li>
-                        <li>Report Bug</li>
-                        <li>Report Inaccurate Conversation Answer</li>
-                        <li>Logout</li>
+                        <li><a href="{{ url_for('account_info') }}">Account Info</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/7?atlOrigin=eyJpIjoiZDY1MGIwNDMwZmRmNDVhOGE2Y2M1ZjI5ZmM1YjNmYzQiLCJwIjoiaiJ9" target="_blank">Request Help</a></li>
+                        <li><a href="{{ url_for('billing') }}">Billing</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/9?atlOrigin=eyJpIjoiOGM1ZDlhYzViZmEzNGMwNGFhNGI4Mzg3MmU4ZmJjNjAiLCJwIjoiaiJ9" target="_blank">Suggest Feature</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/8?atlOrigin=eyJpIjoiZjNlODA3Y2IyMDMyNDlkMWIyMjNkZWZlN2E0Yjk0YWQiLCJwIjoiaiJ9" target="_blank">Report Bug</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/42?atlOrigin=eyJpIjoiMDAyZTVlNTY5MDAzNGM4Y2E4NGQ2MWI0ZjJkYWIzOTciLCJwIjoiaiJ9" target="_blank">Report Inaccurate Conversation Answer</a></li>
+                        <li><a href="#" id="logout-link">Logout</a></li>
                     </ul>
                 </li>
             </ul>
@@ -55,14 +55,7 @@
         <!-- Chat Section -->
         <div class="chat-section">
             <div class="chat-messages">
-                <div class="message-user">
-                    <div class="user-sender">Felix :</div>
-                    <div class="text">Is Montreal in Canada?</div>
-                </div>
-                <div class="message">
-                    <div class="bot-sender">Wyzard AI</div>
-                    <div class="text">Yes</div>
-                </div>
+                <!-- Dynamic conversation messages will be populated here by the script -->
             </div>
 
             <div class="chat-input">
@@ -83,6 +76,10 @@
         </div>
     </main>
 
+    <script>
+        // Retrieve the isAdmin value from the body attribute
+        const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
+    </script>
     <script src="{{ url_for('static', filename='javascript/script.js') }}"></script>
 </body>
 
