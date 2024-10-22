@@ -96,20 +96,27 @@ def load_conversation_from_db(user_id, session_id):
         connection = get_connection()
         cursor = connection.cursor()
         select_query = """
-            SELECT message_role, message_content
+            SELECT message_role, message_content, created_at
             FROM app.conversations
             WHERE user_id = %s AND session_id = %s
             ORDER BY created_at ASC
         """
         cursor.execute(select_query, (user_id, session_id))
         rows = cursor.fetchall()
-        conversation = [{'role': row[0], 'content': row[1]} for row in rows]
+        conversation = [{'role': row[0], 'content': row[1], 'created_at': row[2]} for row in rows]
 
-        # Sort messages in the order: system, user, assistant
-        role_order = {'system': 0, 'user': 1, 'assistant': 2}
-        conversation.sort(key=lambda msg: role_order.get(msg['role'], 3))
+        # Separate system messages and other messages
+        system_message = [msg for msg in conversation if msg['role'] == 'system']
+        other_messages = [msg for msg in conversation if msg['role'] != 'system']
 
-        return conversation
+        # Combine system message (if any) at the start followed by other messages in order
+        ordered_conversation = system_message + other_messages
+
+        # Remove 'created_at' from the final conversation structure for simplicity
+        for msg in ordered_conversation:
+            del msg['created_at']
+
+        return ordered_conversation
     except Exception as e:
         print(f"Error loading conversation from DB: {e}")
         return []
@@ -202,7 +209,7 @@ def get_openai_assistant_response(openai_client, conversation=None):
             brand_voice_instructions = ""
         else:
             brand_voice_instructions = f"""Brand Voice Instructions:
-            When answering the prompt, please make all content you are giving me respect this tone of voice: {brand_voice}."""
+            When the prompt is received, please analyze what kind of request it is. If and only if the request is about creating content (e.g. a social media post, blog articles, etc) please make sure you do it in this tone of voice: {brand_voice}."""
 
         instructions += brand_voice_instructions
 
@@ -382,23 +389,16 @@ def get_brand_voice(business_name):
         if connection:
             connection.close()
 
-def pass_prompt_to_retrieve_openai_assistant_response(prompt, file=None):
+def pass_prompt_to_retrieve_openai_assistant_response(prompt):
     # Generate or get session_id and user_id
     user_id = current_user.id
     session_id = session.sid
 
-    # If a file is provided, extract its content
-    if file and file.filename != '' and allowed_file(file.filename):
-        file_text = extract_text_from_file(file)
-        prompt += "\n\n" + file_text
-
-    modified_prompt = f"Please answer the following prompt: {prompt}"
-
     # Save the user's prompt to the database
-    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
+    save_conversation_to_db(user_id, session_id, 'user', prompt)
 
     # Get the response from OpenAI
-    response = get_openai_assistant_response(modified_prompt)
+    response = get_openai_assistant_response(openai_client)
 
     # Save the assistant's response to the database (original response, not split)
     save_conversation_to_db(user_id, session_id, 'assistant', response)
@@ -584,7 +584,8 @@ def register():
         "michael@lessocialites.com",
         "genevieve.beaudry@gmail.com",
         "team@lessocialites.com",
-        "test@lessocialites.com"
+        "test@lessocialites.com",
+        "renaud.tester@gmail.com"
     ]
 
     if request.method == 'POST':
@@ -762,7 +763,6 @@ def results():
 
 @app.route('/app/conversations')
 @login_required
-@restricted_access
 def conversations():
     is_admin = current_user.email in ADMIN_EMAILS
     return render_template('app/conversations.html', is_admin=is_admin)
@@ -1029,6 +1029,26 @@ def get_prompt_for_openai_assistant_response():
     else:
         return jsonify({"error": "Prompt not found"}), 404
 
+@app.route('/send_typed_prompt_for_openai_assistant_response', methods=['POST'])
+@login_required
+def send_typed_prompt_for_openai_assistant_response():
+    prompt = request.form.get('prompt')
+    file = request.files.get('file')
+
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+
+    # Process the file if one is uploaded
+    file_text = ''
+    if file and file.filename != '' and allowed_file(file.filename):
+        file_text = extract_text_from_file(file)
+        prompt += "\n\n" + file_text
+
+    # Pass the prompt to the assistant response function
+    conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
+
+    return jsonify({"conversation": conversation})
+
 
 @app.route('/app/view-prompt', methods=['POST'])
 @login_required
@@ -1045,10 +1065,8 @@ def view_prompt():
         file_text = extract_text_from_file(file)
         prompt += "\n\n" + file_text
 
-    modified_prompt = f"Please answer the following prompt: {prompt}"
-
     # Save the user's prompt to the database
-    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
+    save_conversation_to_db(user_id, session_id, 'user', prompt)
 
     # Get the response from OpenAI
     response = get_openai_assistant_response(openai_client)

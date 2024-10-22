@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    let lastMessageIndex = 0; // To keep track of the last message index displayed
+
     // Fetch the prompts dynamically and populate the assistant buttons
     fetch('/get_prompts')
         .then(response => response.json())
@@ -73,27 +75,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.error) {
                         console.error('Error fetching conversation:', data.error);
                     } else {
-                        // Display the entire conversation based on isAdmin status
-                        displayConversation(data.conversation);
+                        // Display only new messages
+                        displayNewMessages(data.conversation);
                     }
                 })
                 .catch(error => console.error('Error fetching conversation:', error));
         }
     });
 
-    function displayConversation(conversation) {
+    function displayNewMessages(conversation) {
         const chatMessagesContainer = document.querySelector('.chat-messages');
-        chatMessagesContainer.innerHTML = ''; // Clear previous messages
+        const newMessages = conversation.slice(lastMessageIndex);
 
-        conversation.forEach(message => {
-            // If the user is an admin, show the entire conversation, otherwise filter for assistant messages only
-            if (isAdmin || message.role === 'assistant') {
+        newMessages.forEach(message => {
+            let displayMessage = false;
+
+            // Admins see all messages
+            if (isAdmin) {
+                displayMessage = true;
+            } else {
+                // Non-admins only see user messages without the specific phrase and assistant messages
+                if (message.role === 'assistant') {
+                    displayMessage = true;
+                } else if (message.role === 'user' && !message.content.includes("Please answer the following prompt:")) {
+                    displayMessage = true;
+                }
+            }
+
+            // If the message should be displayed, create the message elements
+            if (displayMessage) {
                 const messageDiv = document.createElement('div');
-                messageDiv.classList.add(message.role === 'user' ? 'message-user' : 'message');
+                messageDiv.classList.add('message');
 
                 const senderDiv = document.createElement('div');
-                senderDiv.classList.add(message.role === 'user' ? 'user-sender' : 'bot-sender');
-                senderDiv.textContent = message.role === 'user' ? 'User:' : 'Wyzard AI:';
+                // Set a custom class for system messages
+                senderDiv.classList.add(
+                    message.role === 'user' ? 'user-sender' :
+                    message.role === 'assistant' ? 'bot-sender' :
+                    'system-sender' // Custom class for system messages
+                );
+
+                // Update the sender label based on the role
+                if (message.role === 'user') {
+                    senderDiv.textContent = 'User:';
+                } else if (message.role === 'assistant') {
+                    senderDiv.textContent = 'Wyzard AI:';
+                } else if (message.role === 'system') {
+                    senderDiv.textContent = 'System Instructions:'; // Label for system messages
+                }
 
                 const textDiv = document.createElement('div');
                 textDiv.classList.add('text');
@@ -111,6 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatMessagesContainer.appendChild(messageDiv);
             }
         });
+
+        // Update the lastMessageIndex to the latest message
+        lastMessageIndex = conversation.length;
     }
 
     // Add event listener to the logout link
@@ -121,4 +153,54 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/logout'; // Redirect to the logout route
         });
     }
+
+    // Handle the form submission for user messages and file uploads
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const fileInput = document.getElementById('file-upload');
+
+    chatForm.addEventListener('submit', (event) => {
+        event.preventDefault(); // Prevent the default form submission behavior
+
+        const prompt = chatInput.value.trim();
+        const file = fileInput.files[0];
+
+        // Check if the prompt is not empty
+        if (!prompt) {
+            alert("Please enter a prompt.");
+            return;
+        }
+
+        // Create a FormData object to hold the form data
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+
+        // Append the file if one is selected
+        if (file) {
+            formData.append('file', file);
+        }
+
+        // Send the form data to the Flask backend using fetch
+        fetch('/send_typed_prompt_for_openai_assistant_response', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                console.error('Error sending message:', data.error);
+            } else {
+                // Update the conversation display with the new message
+                displayNewMessages(data.conversation);
+                chatInput.value = ''; // Clear the input field
+                fileInput.value = ''; // Clear the file input
+            }
+        })
+        .catch(error => console.error('Error sending message:', error));
+    });
 });

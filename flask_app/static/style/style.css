@@ -353,6 +353,11 @@ header nav .nav-list .nav-item .account-dropdown {
   margin-bottom: 5px;
   color: #ffffff;
 }
+.chat-section .chat-messages .message .system-sender {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #FFA500; /* Orange color for system messages */
+}
 .chat-section .chat-messages .message .text {
   background-color: #8a2be2;
   padding: 10px;
@@ -377,10 +382,22 @@ header nav .nav-list .nav-item .account-dropdown {
 }
 .chat-section .chat-input {
   display: flex;
+  align-items: center;
   background-color: #1e1e1e;
   border-radius: 10px;
   padding: 5px;
+  gap: 10px;
 }
+.chat-section .chat-input input {
+  flex-grow: 1;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background-color: #1e1e1e;
+  color: #ffffff;
+  margin-right: 10px;
+}
+
 .chat-section .chat-input .container-upload {
   padding-top: 5px;
   padding-left: 5px;
@@ -405,9 +422,9 @@ header nav .nav-list .nav-item .account-dropdown {
 .chat-section .chat-input .send-btn {
   background-color: #8a2be2;
   border: none;
-  border-radius: 50%;
+  border-radius: 25px;
   width: 50px;
-  height: 50px;
+  height: 60px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -421,4 +438,4 @@ header nav .nav-list .nav-item .account-dropdown {
   width: 24px;
   height: 24px;
   transition: stroke 0.3s ease;
-}/*# sourceMappingURL=style.css.map */
+}
