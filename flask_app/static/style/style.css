@@ -169,7 +169,29 @@ header nav .nav-list .nav-item .account-dropdown {
   margin: 20px 0;
   font-size: 18px;
 }
-
+.loading-animation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+  top: 0;
+  left: 0;
+  background: #2c2c2c;
+}
+.spinner {
+  border: 4px solid rgba(255, 255, 255, 0.1); /* Light color for contrast */
+  border-left-color: #fff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 .assistance-box {
   position: relative;
   width: 25%;

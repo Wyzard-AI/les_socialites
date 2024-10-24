@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Conversations</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
 </head>
 
 <body data-is-admin="{{ 'true' if is_admin else 'false' }}">
@@ -76,6 +77,11 @@
             </div>
         </div>
     </main>
+
+    <!-- Loading Animation -->
+    <div class="loading-animation" id="loading-animation" style="display: none;">
+        <div class="spinner"></div>
+    </div>
 
     <script>
         // Retrieve the isAdmin value from the body attribute

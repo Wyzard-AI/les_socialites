@@ -1024,6 +1024,7 @@ def get_prompt_for_openai_assistant_response():
 
         # Pass the prompt to the assistant response function
         conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
+        print("Conversation:", conversation)
 
         return jsonify({"conversation": conversation})
     else:
@@ -1048,6 +1049,34 @@ def send_typed_prompt_for_openai_assistant_response():
     conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
 
     return jsonify({"conversation": conversation})
+
+@app.route('/delete_conversation', methods=['POST'])
+@login_required
+def delete_conversation():
+    user_id = current_user.id
+    session_id = session.sid
+
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        delete_conversations_query = """
+            DELETE FROM app.conversations
+            WHERE user_id = %s AND session_id = %s
+        """
+        cursor.execute(delete_conversations_query, (user_id, session_id))
+        connection.commit()
+    except Exception as e:
+        print(f"Error clearing conversation: {e}")
+        connection.rollback()
+        return jsonify({"error": "Error deleting conversation"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return jsonify({"message": "Conversation deleted successfully"})
+
 
 
 @app.route('/app/view-prompt', methods=['POST'])
