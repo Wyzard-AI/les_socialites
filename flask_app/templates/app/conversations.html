@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversations</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
+</head>
+
+<body data-is-admin="{{ 'true' if is_admin else 'false' }}">
+    <header>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='wyzard_favicon.png') }}" alt="Logo" class="logo-img">
+        </div>
+        <nav>
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <a href="#" aria-haspopup="true" aria-expanded="false">Settings</a>
+                    <ul class="dropdown account-dropdown">
+                        <li><a href="{{ url_for('knowledge_base') }}">Knowledge Base</a></li>
+                        <li><a href="{{ url_for('brand_voice') }}">Brand Voice</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item">
+                    <a href="#" aria-haspopup="true" aria-expanded="false">Account</a>
+                    <ul class="dropdown account-dropdown">
+                        <li><a href="{{ url_for('account_info') }}">Account Info</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/7?atlOrigin=eyJpIjoiZDY1MGIwNDMwZmRmNDVhOGE2Y2M1ZjI5ZmM1YjNmYzQiLCJwIjoiaiJ9" target="_blank">Request Help</a></li>
+                        <li><a href="{{ url_for('billing') }}">Billing</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/9?atlOrigin=eyJpIjoiOGM1ZDlhYzViZmEzNGMwNGFhNGI4Mzg3MmU4ZmJjNjAiLCJwIjoiaiJ9" target="_blank">Suggest Feature</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/8?atlOrigin=eyJpIjoiZjNlODA3Y2IyMDMyNDlkMWIyMjNkZWZlN2E0Yjk0YWQiLCJwIjoiaiJ9" target="_blank">Report Bug</a></li>
+                        <li><a href="https://lessocialites.atlassian.net/jira/core/projects/WI/form/42?atlOrigin=eyJpIjoiMDAyZTVlNTY5MDAzNGM4Y2E4NGQ2MWI0ZjJkYWIzOTciLCJwIjoiaiJ9" target="_blank">Report Inaccurate Conversation Answer</a></li>
+                        <li><a href="#" id="logout-link">Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="assistance-box">
+        <p>Pick Your Assistant</p>
+
+        <div class="assistant-buttons">
+            <!-- Dynamic buttons will be populated here by the script -->
+        </div>
+
+        <div class="spacer-assistance-box"></div>
+    </div>
+
+    <main class="chat-container">
+        <!-- Assistance Box Section -->
+        <div class="chat-section-left-padding"></div>
+
+        <!-- Chat Section -->
+        <div class="chat-section">
+            <div class="chat-messages">
+                <!-- Dynamic conversation messages will be populated here by the script -->
+            </div>
+
+            <div class="chat-input">
+                <form id="chat-form" enctype="multipart/form-data">
+                    <div class="container-upload">
+                        <input type="file" id="file-upload" name="file" accept=".pdf, .docx, .txt" style="display: none;">
+                        <img src="{{ url_for('static', filename='upload_img.png') }}" class="image_upload" alt="Upload File" onclick="document.getElementById('file-upload').click();">
+                    </div>
+                    <input type="text" id="chat-input" name="message" placeholder="Ask your question here">
+                    <button type="submit" class="send-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="arrow-icon" viewBox="0 0 24 24" fill="none"
+                            stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="21" x2="12" y2="5"></line>
+                            <polyline points="5 12 12 5 19 12"></polyline>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Animation -->
+    <div class="loading-animation" id="loading-animation" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        // Retrieve the isAdmin value from the body attribute
+        const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
+    </script>
+    <script src="{{ url_for('static', filename='javascript/script.js') }}"></script>
+</body>
+
+</html>
