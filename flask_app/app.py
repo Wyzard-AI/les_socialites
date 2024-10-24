@@ -12,17 +12,15 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import secretmanager
 from google.cloud.sql.connector import Connector, IPTypes
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from pypdf import PdfReader
 from docx import Document
 from markdown2 import markdown
 from urllib.parse import urljoin, urlparse
 
-from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory
-from flask_mail import Mail, Message
+from flask import Flask, request, redirect, render_template, session, flash, url_for, send_from_directory, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_session import Session
 
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -98,20 +96,27 @@ def load_conversation_from_db(user_id, session_id):
         connection = get_connection()
         cursor = connection.cursor()
         select_query = """
-            SELECT message_role, message_content
+            SELECT message_role, message_content, created_at
             FROM app.conversations
             WHERE user_id = %s AND session_id = %s
             ORDER BY created_at ASC
         """
         cursor.execute(select_query, (user_id, session_id))
         rows = cursor.fetchall()
-        conversation = [{'role': row[0], 'content': row[1]} for row in rows]
+        conversation = [{'role': row[0], 'content': row[1], 'created_at': row[2]} for row in rows]
 
-        # Sort messages in the order: system, user, assistant
-        role_order = {'system': 0, 'user': 1, 'assistant': 2}
-        conversation.sort(key=lambda msg: role_order.get(msg['role'], 3))
+        # Separate system messages and other messages
+        system_message = [msg for msg in conversation if msg['role'] == 'system']
+        other_messages = [msg for msg in conversation if msg['role'] != 'system']
 
-        return conversation
+        # Combine system message (if any) at the start followed by other messages in order
+        ordered_conversation = system_message + other_messages
+
+        # Remove 'created_at' from the final conversation structure for simplicity
+        for msg in ordered_conversation:
+            del msg['created_at']
+
+        return ordered_conversation
     except Exception as e:
         print(f"Error loading conversation from DB: {e}")
         return []
@@ -204,7 +209,7 @@ def get_openai_assistant_response(openai_client, conversation=None):
             brand_voice_instructions = ""
         else:
             brand_voice_instructions = f"""Brand Voice Instructions:
-            When answering the prompt, please make all content you are giving me respect this tone of voice: {brand_voice}."""
+            When the prompt is received, please analyze what kind of request it is. If and only if the request is about creating content (e.g. a social media post, blog articles, etc) please make sure you do it in this tone of voice: {brand_voice}."""
 
         instructions += brand_voice_instructions
 
@@ -306,7 +311,7 @@ def get_categories_for_business_type(business_type):
         "Transportation": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
         "Utilities": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
         "Wellness and Fitness": ["Accounting", "Administrative Assistant", "Business Developer", "Customer Service", "Data Analyst", "Design", "HR", "Humanzier", "Legal Advisor", "Plagiarism Checker", "Project Manager", "Sales", "Spellcheck/Translation", "Personal Assistant"],
-        "Les Socialites": ["Accounting", "Administrative Assistant", "Business Developer", "Content Creation", "Customer Service", "Data Analyst", "Design", "Event Planning", "HR", "Humanizer", "Influencer", "Influencer Marketing", "Legal Advisor", "Marketing", "Multi-Channel Campaign", "Plagiarism Checker", "PR", "Project Manager", "Sales", "SEO", "Social Media", "Spellcheck/Translation", "Personal Assistant", "Web", "eCommerce"]
+        "Les Socialites": ["Accounting", "Administrative Assistant", "Business Developer", "Content Creation", "Customer Service", "Data Analyst", "Design", "Event Planning", "HR", "Humanizer", "Influencer", "Influencer Marketing", "Legal Advisor", "Marketing", "Multi-Channel Campaign", "Plagiarism Checker", "PR", "Project Manager", "Sales", "Social Media", "Spellcheck/Translation", "Personal Assistant", "Web", "eCommerce"]
     }
 
     # Return the categories for the selected business type
@@ -383,6 +388,38 @@ def get_brand_voice(business_name):
             cursor.close()
         if connection:
             connection.close()
+
+def pass_prompt_to_retrieve_openai_assistant_response(prompt):
+    # Generate or get session_id and user_id
+    user_id = current_user.id
+    session_id = session.sid
+
+    # Save the user's prompt to the database
+    save_conversation_to_db(user_id, session_id, 'user', prompt)
+
+    # Get the response from OpenAI
+    response = get_openai_assistant_response(openai_client)
+
+    # Save the assistant's response to the database (original response, not split)
+    save_conversation_to_db(user_id, session_id, 'assistant', response)
+
+    # Load the entire conversation from the database for this session
+    conversation = load_conversation_from_db(user_id, session_id)
+
+    # Process the conversation for rendering
+    for message in conversation:
+        if message['role'] == 'assistant' and '```' in message['content']:
+            parts = message['content'].split('```')
+            message['content_parts'] = []
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    message['content_parts'].append({'type': 'text', 'content': markdown(part)})
+                else:
+                    message['content_parts'].append({'type': 'code', 'content': part})
+        else:
+            message['content_parts'] = [{'type': 'text', 'content': markdown(message['content'])}]
+
+    return conversation
 
 
 
@@ -513,7 +550,7 @@ def login():
                 login_user(user)
                 session['business_name'] = user.business_name
                 session['business_type'] = user.business_type
-                return redirect(url_for('prompt_categories'))  # Redirect to the desired default page
+                return redirect(url_for('conversations'))  # Redirect to the desired default page
             else:
                 flash("Email or password is incorrect.")
                 return redirect(url_for('login'))
@@ -543,7 +580,12 @@ def register():
         "imen@lessocialites.com",
         "felix@lessocialites.com",
         "ari@lessocialites.com",
-        "genevieve.beaudry@gmail.com"
+        "gladys@lessocialites.com",
+        "michael@lessocialites.com",
+        "genevieve.beaudry@gmail.com",
+        "team@lessocialites.com",
+        "test@lessocialites.com",
+        "renaud.tester@gmail.com"
     ]
 
     if request.method == 'POST':
@@ -611,11 +653,7 @@ def register():
         flash("Registration successful! Please log in.", "success")
         return redirect(url_for('login'))
 
-    # Check if the user should see "Les Socialites" as a business type option based on the domain
-    email = request.args.get('email', '')
-    is_socialites_whitelisted = "lessocialites.com" in email
-
-    return render_template('register.html', is_socialites_whitelisted=is_socialites_whitelisted)
+    return render_template('register.html')
 
 @app.route('/app/clear-conversation')
 @login_required
@@ -701,13 +739,33 @@ def results():
 
     conversation = load_conversation_from_db(user_id, session_id)
 
+    # Process each message to separate code blocks and text
     for message in conversation:
-        if message['role'] == 'assistant':
-            message['content'] = markdown(message['content'])
+        if '```' in message['content']:
+            # Split the content by triple backticks to isolate code blocks
+            parts = message['content'].split('```')
+            formatted_parts = []
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    # Non-code part, process as markdown
+                    formatted_parts.append({'type': 'text', 'content': markdown(part)})
+                else:
+                    # Code block
+                    formatted_parts.append({'type': 'code', 'content': part})
+            message['content_parts'] = formatted_parts
+        else:
+            # No code blocks, process entire message as markdown
+            message['content_parts'] = [{'type': 'text', 'content': markdown(message['content'])}]
 
     business_type = session.get('business_type', 'No business type selected')
 
     return render_template('app/results.html', conversation=conversation, business_type=business_type)
+
+@app.route('/app/conversations')
+@login_required
+def conversations():
+    is_admin = current_user.email in ADMIN_EMAILS
+    return render_template('app/conversations.html', is_admin=is_admin)
 
 @app.route('/app/prompt-menu')
 @login_required
@@ -797,7 +855,6 @@ def prompt_categories():
         "Spellcheck/Translation": "✍️",
         "Multi-Channel Campaign": "💌",
         "HR": "💼",
-        "SEO": "🔍",
         "Humanizer": "🧠",
         "eCommerce": "🛒",
         "Data Analyst": "📊",
@@ -897,10 +954,135 @@ def product_faq():
 
 
 ### ROUTE REQUESTS ###
+@app.route('/get_prompts', methods=['GET'])
+@login_required
+def get_prompts():
+    # Get the business type from the session
+    business_type = session.get('business_type')
+
+    if not business_type:
+        return jsonify({"error": "Business type not found in session"}), 400
+
+    # Get the allowed categories for the business type
+    allowed_categories = get_categories_for_business_type(business_type)
+
+    # Establish a database connection
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Query to fetch prompts from your table, filtering by the allowed categories
+    query = """
+    SELECT category, subcategory, button_name
+    FROM app.prompts
+    WHERE category = ANY(%s)
+    """
+    cursor.execute(query, (allowed_categories,))
+    rows = cursor.fetchall()
+
+    # Format the data as a dictionary
+    prompts = {}
+    for row in rows:
+        category, subcategory, button_name = row
+        if category not in prompts:
+            prompts[category] = {}
+        if subcategory not in prompts[category]:
+            prompts[category][subcategory] = []
+        prompts[category][subcategory].append(button_name)
+
+    cursor.close()
+    conn.close()
+    return jsonify(prompts)
+
+@app.route('/get_prompt_for_openai_assistant_response', methods=['GET'])
+@login_required
+def get_prompt_for_openai_assistant_response():
+    category = request.args.get('category')
+    subcategory = request.args.get('subcategory')
+    button_name = request.args.get('button_name')
+
+    if not (category and subcategory and button_name):
+        return jsonify({"error": "Invalid parameters"}), 400
+
+    # Establish a database connection
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Query to fetch the prompt for the given category, subcategory, and button_name
+    query = """
+    SELECT prompt
+    FROM app.prompts
+    WHERE category = %s AND subcategory = %s AND button_name = %s
+    """
+    cursor.execute(query, (category, subcategory, button_name))
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if row:
+        prompt = row[0]
+
+        # Pass the prompt to the assistant response function
+        conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
+        print("Conversation:", conversation)
+
+        return jsonify({"conversation": conversation})
+    else:
+        return jsonify({"error": "Prompt not found"}), 404
+
+@app.route('/send_typed_prompt_for_openai_assistant_response', methods=['POST'])
+@login_required
+def send_typed_prompt_for_openai_assistant_response():
+    prompt = request.form.get('prompt')
+    file = request.files.get('file')
+
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+
+    # Process the file if one is uploaded
+    file_text = ''
+    if file and file.filename != '' and allowed_file(file.filename):
+        file_text = extract_text_from_file(file)
+        prompt += "\n\n" + file_text
+
+    # Pass the prompt to the assistant response function
+    conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
+
+    return jsonify({"conversation": conversation})
+
+@app.route('/delete_conversation', methods=['POST'])
+@login_required
+def delete_conversation():
+    user_id = current_user.id
+    session_id = session.sid
+
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        delete_conversations_query = """
+            DELETE FROM app.conversations
+            WHERE user_id = %s AND session_id = %s
+        """
+        cursor.execute(delete_conversations_query, (user_id, session_id))
+        connection.commit()
+    except Exception as e:
+        print(f"Error clearing conversation: {e}")
+        connection.rollback()
+        return jsonify({"error": "Error deleting conversation"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return jsonify({"message": "Conversation deleted successfully"})
+
+
+
 @app.route('/app/view-prompt', methods=['POST'])
 @login_required
 def view_prompt():
-    # Get the prompt and category from the form
+    # Get the prompt from the form
     prompt = request.form['prompt']
 
     # Generate or get session_id and user_id
@@ -912,29 +1094,50 @@ def view_prompt():
         file_text = extract_text_from_file(file)
         prompt += "\n\n" + file_text
 
-    modified_prompt = f"Please answer the following prompt: {prompt}"
-
     # Save the user's prompt to the database
-    save_conversation_to_db(user_id, session_id, 'user', modified_prompt)
+    save_conversation_to_db(user_id, session_id, 'user', prompt)
 
     # Get the response from OpenAI
     response = get_openai_assistant_response(openai_client)
-    formatted_response = markdown(response)
 
-    # Save the assistant's response to the database
+    # Split the response content by code blocks and markdown it
+    if '```' in response:
+        parts = response.split('```')
+        formatted_parts = []
+        for i, part in enumerate(parts):
+            if i % 2 == 0:
+                # Non-code part, process as markdown
+                formatted_parts.append({'type': 'text', 'content': markdown(part)})
+            else:
+                # Code block, leave as it is
+                formatted_parts.append({'type': 'code', 'content': part})
+    else:
+        # If no code blocks, process the entire response as markdown
+        formatted_parts = [{'type': 'text', 'content': markdown(response)}]
+
+    # Save the assistant's response to the database (original response, not split)
     save_conversation_to_db(user_id, session_id, 'assistant', response)
 
     conversation = load_conversation_from_db(user_id, session_id)
 
+    # Process the conversation for the results page
     for message in conversation:
-        if message['role'] == 'assistant':
-            message['content'] = markdown(message['content'])
+        if message['role'] == 'assistant' and '```' in message['content']:
+            parts = message['content'].split('```')
+            message['content_parts'] = []
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    message['content_parts'].append({'type': 'text', 'content': markdown(part)})
+                else:
+                    message['content_parts'].append({'type': 'code', 'content': part})
+        else:
+            message['content_parts'] = [{'type': 'text', 'content': markdown(message['content'])}]
 
     # Check if the user is an admin
     user_email = current_user.email
     is_admin = user_email in ADMIN_EMAILS
 
-    return render_template('app/results.html', prompt=prompt, response=formatted_response, conversation=conversation, is_admin=is_admin)
+    return render_template('app/results.html', prompt=prompt, response=response, conversation=conversation, is_admin=is_admin)
 
 @app.route('/app/save-brand-voice', methods=['POST'])
 @login_required
@@ -1287,7 +1490,7 @@ def terms_conditions():
 @restricted_access
 def index():
     categories = ['Sales', 'Marketing', 'PR', 'Social Media', 'Web', 'Legal Advisor', 'Event Planning',
-                'Spellcheck/Translation', 'Multi-Channel Campaign', 'HR', 'SEO', 'Humanizer',
+                'Spellcheck/Translation', 'Multi-Channel Campaign', 'HR', 'Humanizer',
                 'eCommerce', 'Data Analyst', 'Project Manager', 'Customer Service', 'Business',
                 'Business Developer', 'Plagiarism Checker', 'Influencer Marketing',
                 'Administrative Assistant', 'Accounting', 'Design', 'Personal Assistant',

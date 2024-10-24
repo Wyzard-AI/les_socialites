@@ -22,6 +22,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            overflow-y: auto;
         }
 
         .main-content {
@@ -40,6 +41,7 @@
             margin-left: 250px;
             margin-right: 250px;
             padding: 20px;
+            position: relative;
         }
 
         .response-block {
@@ -52,8 +54,9 @@
             line-height: 1.5;
             color: #e0e0e0;
             font-family: Arial, sans-serif;
+            max-width: 100%; /* Ensure the block doesn’t overflow */
+            word-wrap: break-word; /* Ensure long words break properly */
         }
-
 
         .system-message {
             background-color: #f0f0f0; /* Light gray for system messages */
@@ -76,6 +79,7 @@
             color: #e0e0e0;
             width: 100%;
             box-sizing: border-box;
+            word-wrap: break-word;
         }
 
         .assistant {
@@ -141,6 +145,8 @@
 
         .secondary-button {
             display: block;
+            position: sticky;
+            bottom: 0;
             width: 100%;
             padding: 12px;
             border-radius: 4px;
@@ -170,7 +176,7 @@
             padding: 10px;
             border-radius: 8px;
             text-align: center;
-            margin-bottom: 20px;
+            margin: 20px auto; /* Centering the flash message */
         }
     </style>
 </head>
@@ -201,19 +207,17 @@
                 {% if is_admin %}
                     <!-- Show prompt and instructions to admin users -->
                     {% for message in conversation %}
-                        {% if message.role == 'system' %}
-                            <div class="response-block system-message">
-                                <strong>System:</strong> {{ message.content|safe }}
-                            </div>
-                        {% elif message.role == 'user' %}
-                            <div class="response-block user-message">
-                                <strong>User:</strong> {{ message.content|safe }}
-                            </div>
-                        {% else %}
-                            <div class="response-block">
-                                {{ message.content|safe }}
-                            </div>
-                        {% endif %}
+                        <div class="response-block {% if message.role == 'system' %}system-message{% elif message.role == 'user' %}user-message{% endif %}">
+                            {% for part in message.content_parts %}
+                                {% if part.type == 'text' %}
+                                    <!-- Render the markdown content -->
+                                    {{ part.content|safe }}
+                                {% elif part.type == 'code' %}
+                                    <!-- Render the code block -->
+                                    <pre><code>{{ part.content|e }}</code></pre>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
                     {% endfor %}
                 {% else %}
                     <!-- Show only the assistant's response to non-admin users -->
@@ -221,7 +225,15 @@
                         {% if message.role == "assistant" %}
                             <div class="assistant">
                                 <div class="response-block">
-                                    {{ message.content|safe }}
+                                    {% for part in message.content_parts %}
+                                        {% if part.type == 'text' %}
+                                            <!-- Render the markdown content -->
+                                            {{ part.content|safe }}
+                                        {% elif part.type == 'code' %}
+                                            <!-- Render the code block -->
+                                            <pre><code>{{ part.content|e }}</code></pre>
+                                        {% endif %}
+                                    {% endfor %}
                                 </div>
                             </div>
                         {% endif %}

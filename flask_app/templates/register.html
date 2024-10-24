@@ -130,7 +130,7 @@
             <form action="{{ url_for('register') }}" method="POST">
                 <div class="mb-3">
                     <label for="email" class="form-label">Work Email:</label>
-                    <input type="email" class="form-control" id="email" name="email" required>
+                    <input type="email" class="form-control" id="email" name="email" required oninput="checkEmailDomain()">
                 </div>
                 <div class="mb-3 password-toggle">
                     <label for="password" class="form-label">Choose a Password:</label>
@@ -167,9 +167,9 @@
                         <option value="Transportation">Transportation</option>
                         <option value="Utilities">Utilities</option>
                         <option value="Wellness and Fitness">Wellness and Fitness</option>
-                        {% if is_socialites_whitelisted %}
-                            <option value="Les Socialites">Les Socialites</option>
-                        {% endif %}
+                        <!-- Other business types go here -->
+                        <option value="Technology">Technology</option>
+                        <!-- Les Socialites will be added dynamically if valid email -->
                     </select>
                 </div>
                 <button type="submit" class="btn-primary">Register</button>
@@ -184,6 +184,38 @@
                 input.type = "text";
             } else {
                 input.type = "password";
+            }
+        }
+
+        function checkEmailDomain() {
+            const emailInput = document.getElementById('email').value;
+            const businessTypeSelect = document.getElementById('business_type');
+            const domain = emailInput.split('@')[1];
+
+            // Check if the email contains the "lessocialites.com" domain
+            if (domain && domain.toLowerCase() === 'lessocialites.com') {
+                // Add "Les Socialites" option if it's not already in the dropdown
+                let optionExists = false;
+                for (let i = 0; i < businessTypeSelect.options.length; i++) {
+                    if (businessTypeSelect.options[i].value === 'Les Socialites') {
+                        optionExists = true;
+                        break;
+                    }
+                }
+                if (!optionExists) {
+                    const option = document.createElement('option');
+                    option.value = 'Les Socialites';
+                    option.text = 'Les Socialites';
+                    businessTypeSelect.add(option);
+                }
+            } else {
+                // Remove "Les Socialites" option if it exists and the email domain is not valid
+                for (let i = 0; i < businessTypeSelect.options.length; i++) {
+                    if (businessTypeSelect.options[i].value === 'Les Socialites') {
+                        businessTypeSelect.remove(i);
+                        break;
+                    }
+                }
             }
         }
     </script>
