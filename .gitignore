@@ -4,3 +4,5 @@ data_dumps/
 config.json
 cloud_sql_proxy
 wyzard_test*
+wyzard/
+flask_app/__pycache__

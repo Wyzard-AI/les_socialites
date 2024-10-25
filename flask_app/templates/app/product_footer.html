@@ -25,7 +25,8 @@
         </div>
         <div class="footer-section newsletter-section">
             <h4>Newsletter</h4>
-            <form id="newsletter-form" action="{{ url_for('submit_newsletter') }}" method="POST" class="newsletter-form">
+            <form id="newsletter-form" action="{{ url_for('submit_newsletter') }}" method="POST"
+                class="newsletter-form">
                 <input type="email" name="email" placeholder="Enter your email" required>
                 <button type="submit" class="btn-subscribe">Subscribe</button>
             </form>
@@ -38,29 +39,29 @@
 
 <script>
     // AJAX form submission
-    $('#newsletter-form').on('submit', function(event) {
-        event.preventDefault(); // Prevent the default form submission
+    $('#newsletter-form').on('submit', function (event) {
+        event.preventDefault() // Prevent the default form submission
 
         $.ajax({
             url: '/submit_newsletter',
             type: 'POST',
             data: $(this).serialize(), // Serialize form data
-            success: function(response) {
+            success: function (response) {
                 // Show success message
-                $('#newsletter-message').text(response.message).css('color', 'green');
+                $('#newsletter-message').text(response.message).css('color', 'green')
             },
-            error: function(xhr) {
+            error: function (xhr) {
                 // Show error message
-                const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred.';
-                $('#newsletter-message').text(errorMessage).css('color', 'red');
+                const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred.'
+                $('#newsletter-message').text(errorMessage).css('color', 'red')
             }
-        });
+        })
     });
 </script>
 
 <style>
     .footer {
-        background-color: #121212;
+        /* background-color: #121212;
         color: #e0e0e0;
         text-align: center;
         padding: 10px 5px;
@@ -71,8 +72,22 @@
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
-        height: auto;
-        margin-top: 40px;
+        /* margin-top: 40px; */
+
+        background-color: #121212;
+        color: #e0e0e0;
+        text-align: center;
+        padding: 20px;
+        width: 100%;
+        position: relative;
+        bottom: 0px;
+        z-index: 1000;
+        font-size: 12px;
+        line-height: 1.1;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: auto; 
     }
 
     .footer a {
@@ -109,7 +124,8 @@
         font-weight: bold;
     }
 
-    .footer-section p, .footer-section ul li {
+    .footer-section p,
+    .footer-section ul li {
         font-size: 11px;
         margin: 3px 0;
         color: #8a2be2;
