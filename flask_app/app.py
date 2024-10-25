@@ -1024,7 +1024,7 @@ def get_prompt_for_openai_assistant_response():
 
         # Pass the prompt to the assistant response function
         conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
-        print("Conversation:", conversation)
+        # print("Conversation:", conversation)
 
         return jsonify({"conversation": conversation})
     else:
