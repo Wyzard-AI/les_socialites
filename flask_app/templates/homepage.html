@@ -255,7 +255,6 @@
                 <h4>The Small Print</h4>
                 <a href="{{ url_for('about_us') }}">About Us</a>
                 <a href="{{ url_for('contact_us') }}">Contact</a>
-                <a href="{{ url_for('faq') }}">FAQ</a>
                 <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
                 <a href="{{ url_for('terms_conditions') }}">Terms and Conditions</a>
             </div>
@@ -268,28 +267,6 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
-    <script>
-        // AJAX form submission for newsletter
-        $('#newsletter-form').on('submit', function(event) {
-            event.preventDefault(); // Prevent the default form submission
-
-            $.ajax({
-                url: '/submit_newsletter',
-                type: 'POST',
-                data: $(this).serialize(), // Serialize form data
-                success: function(response) {
-                    // Show success message
-                    $('#newsletter-message').text(response.message).css('color', 'green');
-                },
-                error: function(xhr) {
-                    // Show error message
-                    const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred.';
-                    $('#newsletter-message').text(errorMessage).css('color', 'red');
-                }
-            });
-        });
-    </script>
+    <script src="{{ url_for('static', filename='javascript/script.js') }}"></script>
 </body>
 </html>
