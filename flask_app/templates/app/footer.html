@@ -15,7 +15,7 @@
         </div>
         <div class="footer-section">
             <h4>Contact Us</h4>
-            <p class="contact-info">Canada<br>775 Rue D'Aiguillon, Quebec, QC, G1R 1M8</p>
+            <p class="contact-info">Canada<br>775 Rue D'Aiguillon<br>Quebec, QC, G1R 1M8</p>
         </div>
         <div class="footer-section">
             <h4>Follow Us</h4>
@@ -25,7 +25,7 @@
         </div>
         <div class="footer-section newsletter-section">
             <h4>Newsletter</h4>
-            <form id="newsletter-form" action="{{ url_for('submit_newsletter') }}" method="POST" class="newsletter-form">
+            <form id="newsletter-form" action="/submit-newsletter" method="POST" class="newsletter-form">
                 <input type="email" name="email" placeholder="Enter your email" required>
                 <button type="submit" class="btn-subscribe">Subscribe</button>
             </form>

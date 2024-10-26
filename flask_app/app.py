@@ -1371,17 +1371,24 @@ def forgot_password_submit():
     return redirect(url_for('register'))
 
 @app.route('/submit-newsletter', methods=['POST'])
+@login_required
 def submit_newsletter():
-    email = request.form['email']
+    email = request.form.get('email')
 
-    # Add data to the Google Sheet
+    if not email:
+        return jsonify({"success": False, "message": "Email is required"}), 400
+
+    # Access the Google Sheets
     try:
+        # Append the new email to the next available row
         newsletter_sheet.append_row([email])
-        flash("You've been added to the newsletter!", "success")
+        print("Email successfully subscribed!")
+        return jsonify({"success": True, "message": "Subscription successful!"}), 200
     except Exception as e:
-        flash(f"An error occurred: {e}", "error")
+        print(f"Error subscribing email: {e}")
+        return jsonify({"success": False, "message": "An error occurred. Please try again later."}), 500
 
-    return redirect(url_for('waitlist'))
+
 
 
 
