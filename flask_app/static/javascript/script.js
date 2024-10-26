@@ -1,6 +1,34 @@
 document.addEventListener('DOMContentLoaded', () => {
     let lastMessageIndex = 0;
 
+    const categoryEmojis = {
+        "Accounting": "📄",
+        "Administrative Assistant": "💻",
+        "Business Developer": "🤝",
+        "Content Creation": "📸",
+        "Customer Service": "📞",
+        "Data Analyst": "📊",
+        "Design": "🎨",
+        "eCommerce": "🛒",
+        "Event Planning": "🎉",
+        "HR": "💼",
+        "Humanizer": "🧠",
+        "Influencer": "🤩",
+        "Influencer Marketing": "🤳",
+        "Legal Advisor": "⚖️",
+        "Marketing": "📣",
+        "Multi-Channel Campaign": "💌",
+        "Plagiarism Checker": "✅",
+        "PR": "📰",
+        "Project Manager": "📋",
+        "Sales": "💰",
+        "SEO": "🔍",
+        "Social Media": "❤️",
+        "Spellcheck/Translation": "✍️",
+        "Personal Assistant": "🤖",
+        "Web": "🌐"
+    };
+
     // Initialize everything when the DOM content is fully loaded
     fetchPrompts();
     initNewsletterForm();
@@ -60,7 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const buttonDiv = document.createElement('div');
                         buttonDiv.classList.add('button');
                         buttonDiv.setAttribute('data-category', category);
-                        buttonDiv.textContent = category;
+
+                        // Add emoji if available for the category
+                        const categoryText = categoryEmojis[category]
+                            ? `${categoryEmojis[category]} ${category}`
+                            : category;
+
+                        buttonDiv.textContent = categoryText;
 
                         const submenuDiv = document.createElement('div');
                         submenuDiv.classList.add('submenu');
@@ -128,6 +162,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initChatForm() {
         const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+
         chatForm.addEventListener('submit', function(event) {
             event.preventDefault();
 
@@ -153,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return Promise.reject(data.error);
                 }
                 displayNewMessages(data.conversation);
+                chatInput.value = '';
             })
             .catch(error => console.error('Error submitting message:', error))
             .finally(() => {
