@@ -267,38 +267,47 @@ document.addEventListener('DOMContentLoaded', () => {
         chatMessagesContainer.innerHTML = ''; // Clear old messages before displaying new ones
 
         conversation.forEach(message => {
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message');
+            let displayMessage = true;
 
-            const senderDiv = document.createElement('div');
-            senderDiv.classList.add(
-                message.role === 'user' ? 'user-sender' :
-                message.role === 'assistant' ? 'bot-sender' :
-                'system-sender'
-            );
-
-            if (message.role === 'user') {
-                senderDiv.textContent = 'User:';
-            } else if (message.role === 'assistant') {
-                senderDiv.textContent = 'Wyzard AI:';
-            } else if (message.role === 'system') {
-                senderDiv.textContent = 'System Instructions:';
+            // Only display system messages if the user is an admin
+            if (message.role === 'system' && !isAdmin) {
+                displayMessage = false;
             }
 
-            const textDiv = document.createElement('div');
-            textDiv.classList.add('text');
+            if (displayMessage) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
 
-            if (Array.isArray(message.content_parts)) {
-                message.content_parts.forEach(part => {
-                    const paragraph = document.createElement('div');
-                    paragraph.innerHTML = part.content;
-                    textDiv.appendChild(paragraph);
-                });
+                const senderDiv = document.createElement('div');
+                senderDiv.classList.add(
+                    message.role === 'user' ? 'user-sender' :
+                    message.role === 'assistant' ? 'bot-sender' :
+                    'system-sender'
+                );
+
+                if (message.role === 'user') {
+                    senderDiv.textContent = 'User:';
+                } else if (message.role === 'assistant') {
+                    senderDiv.textContent = 'Wyzard AI:';
+                } else if (message.role === 'system') {
+                    senderDiv.textContent = 'System Instructions:';
+                }
+
+                const textDiv = document.createElement('div');
+                textDiv.classList.add('text');
+
+                if (Array.isArray(message.content_parts)) {
+                    message.content_parts.forEach(part => {
+                        const paragraph = document.createElement('div');
+                        paragraph.innerHTML = part.content;
+                        textDiv.appendChild(paragraph);
+                    });
+                }
+
+                messageDiv.appendChild(senderDiv);
+                messageDiv.appendChild(textDiv);
+                chatMessagesContainer.appendChild(messageDiv);
             }
-
-            messageDiv.appendChild(senderDiv);
-            messageDiv.appendChild(textDiv);
-            chatMessagesContainer.appendChild(messageDiv);
         });
 
         lastMessageIndex = conversation.length;
