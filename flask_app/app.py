@@ -237,16 +237,18 @@ def get_openai_assistant_response(openai_client, conversation=None):
 
         instructions += brand_voice_instructions
 
-        # Prepend context to the instructions
-        instructions = f"""
-        At the beginning of the conversation, you will receive 2 sets of instructions for answering subsequent prompts:
+        if instructions == "":
+            instructions = "There are no special instructions just answer the prompt."
+        else:
+            instructions = f"""
+            At the beginning of the conversation, you will receive 2 sets of instructions for answering subsequent prompts:
 
-        1) Knowledge Base Instructions and 2) Brand Voice Instructions.
+            1) Knowledge Base Instructions and 2) Brand Voice Instructions.
 
-        Prioritize those instructions in this order: 1) then 2).
+            Prioritize those instructions in this order: 1) then 2).
 
-        {instructions}
-        """
+            {instructions}
+            """
 
         # Sanitize the instructions and add them to the conversation
         sanitized_instructions = sanitize_text(instructions)
@@ -476,10 +478,6 @@ creds_dict = json.loads(creds_json)
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 
 client = gspread.authorize(creds)
-
-sheet = client.open("Wyzard Email List")
-waitlist_sheet = sheet.worksheet("waitlist")
-newsletter_sheet = sheet.worksheet("newsletter")
 
 # Flask-Login setup
 login_manager = LoginManager()
@@ -980,6 +978,7 @@ def send_typed_prompt_for_openai_assistant_response():
 
     # Pass the prompt to the assistant response function
     conversation = pass_prompt_to_retrieve_openai_assistant_response(prompt)
+    print("Conversation:", conversation)
 
     return jsonify({"conversation": conversation})
 
@@ -1214,6 +1213,9 @@ def submit_waitlist():
     company_name = request.form['company_name']
     number_of_employees = request.form['number_of_employees']
 
+    sheet = client.open("Wyzard Email List")
+    waitlist_sheet = sheet.worksheet("waitlist")
+
     # Add data to the Google Sheet
     try:
         waitlist_sheet.append_row([name, email, company_name, number_of_employees])
@@ -1228,6 +1230,9 @@ def submit_waitlist():
 @app.route('/submit-newsletter', methods=['POST'])
 def submit_newsletter():
     email = request.form.get('email')
+
+    sheet = client.open("Wyzard Email List")
+    newsletter_sheet = sheet.worksheet("newsletter")
 
     if not email:
         return jsonify({"success": False, "message": "Email is required"}), 400
