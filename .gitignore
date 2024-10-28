@@ -4,3 +4,4 @@ data_dumps/
 config.json
 cloud_sql_proxy
 wyzard_test*
+wyzard/
