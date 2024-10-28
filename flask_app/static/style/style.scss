@@ -1,12 +1,23 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: #2c2c2c;
+    overflow-x: hidden;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
     background-color: #2c2c2c;
-
-    min-height: 100%;
-    /* Ensure the body takes the full height */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     overflow-x: hidden;
-    /* Prevent horizontal scrolling */
     max-width: 100%;
     overflow-y: auto;
 }
@@ -18,25 +29,24 @@ header {
     align-items: center;
     justify-content: space-between;
     box-sizing: border-box;
-    position: fixed; // Changed from sticky to fixed
+    position: fixed;
     top: 0;
     left: 0;
-    width: 100%; // Ensure the header takes the full width of the screen
-    z-index: 1200; // Ensure it's above other content
-    border-bottom: 1px solid #333; // Optional: Add a border for separation
+    height: 80px;
+    width: 100%;
+    z-index: 1200;
+    border-bottom: 1px solid #333;
 
     .hamburger-menu {
         display: flex;
         flex-direction: column;
         cursor: pointer;
         z-index: 1100;
-        /* Ensure hamburger menu stays on top */
 
         .line {
             width: 30px;
             height: 3px;
             background-color: #fff;
-            /* White lines for hamburger menu */
             margin: 4px 0;
         }
     }
@@ -45,17 +55,12 @@ header {
         display: flex;
         align-items: center;
         margin-left: 30px;
-        /* Adjust margin as needed */
         margin-right: 10px;
-        /* Adjust margin as needed */
 
         .logo-img {
-            width: 80px;
-            /* Adjust this value for desired width */
+            width: 60px;
             height: auto;
-            /* Maintain aspect ratio */
             margin-right: 5px;
-            /* Space between the logo image and the text */
         }
 
         span {
@@ -67,12 +72,9 @@ header {
 
     nav {
         position: relative;
-        /* Ensure nav is positioned relative */
-        z-index: 3000; // Ensure nav stays on top of all other content
-        /* Ensure nav items stay below the hamburger menu */
+        z-index: 3000;
         margin-left: auto;
 
-        /* Push nav items to the far right */
         .nav-list {
             list-style: none;
             display: flex;
@@ -85,7 +87,6 @@ header {
 
                 a {
                     color: #ffffff;
-                    /* White font color */
                     text-decoration: none;
                     font-size: 18px;
 
@@ -99,14 +100,13 @@ header {
                     display: none;
                     position: absolute;
                     background-color: #1e1e1e;
-                    /* Dropdown color */
                     list-style: none;
                     top: 100%;
                     left: 0;
                     min-width: 200px;
                     padding: 10px;
                     border-radius: 5px;
-                    z-index: 4000; // Ensure dropdown stays above other elements
+                    z-index: 4000;
 
                     li {
                         padding: 10px 15px;
@@ -114,7 +114,6 @@ header {
 
                         &:hover {
                             background-color: #333;
-                            /* Dark hover effect */
                         }
                     }
                 }
@@ -123,16 +122,26 @@ header {
                     display: block;
                 }
 
-                /* Specific styles for Account dropdown */
                 .account-dropdown {
                     left: auto;
-                    /* Reset left position */
                     right: 0;
-                    /* Align to the right edge of the screen */
                 }
             }
         }
     }
+}
+
+.wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.content {
+    flex-grow: 1;
+    padding: 20px;
+    width: 100%;
 }
 
 .side-menu {
@@ -142,16 +151,13 @@ header {
     width: 20%;
     height: 100%;
     background-color: #000;
-    /* Black background for the menu */
     color: #fff;
     padding: 20px;
     transition: left 0.2s ease-in-out;
-    /* Smoother transition with ease-in-out */
-    z-index: 1000; // Reduced so nav items stay on top
+    z-index: 1000;
 
     &.active {
         left: 0;
-        /* Slide in when active */
         z-index: 1100;
     }
 
@@ -171,13 +177,10 @@ header {
         justify-content: center;
         align-items: center;
         margin-bottom: 20px;
-        /* Space below the logo */
 
         .logo-img {
             width: 120px;
-            /* Adjust size as needed */
             height: auto;
-            /* Maintain aspect ratio */
         }
     }
 
@@ -192,25 +195,20 @@ header {
     }
 }
 
-
-
-
 .assistance-box {
     position: relative;
-    width: 25%;
+    width: 20%;
     background-color: #1e1e1e;
     padding: 20px;
-    margin-left: 20px;
+    margin-left: 40px;
     margin-bottom: 20px;
     border-radius: 10px;
     color: #ffffff;
     text-align: center;
     font-size: 16px;
     min-height: 76vh;
-    top: 15vh;
-    z-index: 100; // Ensure it doesn't overlap the nav menu
-    // flex-grow: 1;
-    // display: block;
+    top: 2vh;
+    z-index: 100;
     display: flex;
     flex-direction: column;
 
@@ -221,56 +219,41 @@ header {
         top: 35vh;
     }
 
-
-
     .assistant-buttons {
         display: flex;
         flex-direction: column;
-        align-items: flex-start; // Align items to the start (left)
+        align-items: flex-start;
         margin-top: 20px;
 
         div.button {
             font-size: 14px;
-            position: relative; // For submenu positioning
+            position: relative;
             width: 100%;
-            max-width: 200px; // Limit the max width for better layout
+            max-width: 200px;
             cursor: pointer;
             background-color: #1e1e1e;
             border-radius: 10px;
-            // padding: 5px 15px;
             transition: background-color 0.3s ease;
-            text-align: left; // Align text to the left
+            text-align: left;
 
             &:hover {
-                background-color: #8a2be2; // Dark hover effect
+                background-color: #8a2be2;
             }
 
-            // Submenu styling
             .submenu {
                 background-color: #1e1e1e;
-                display: none; // Initially hide the submenu
+                display: none;
                 position: absolute;
-                top: 0; // Align with the top of the button
-                left: 95%; // Move to the right side of the button
-                // padding-right: 20px;
+                top: 0;
+                left: 95%;
                 border-radius: 5px;
                 min-width: 150px;
                 z-index: 1;
                 border: 2px solid white;
 
-                // div.submenu-item {
-                //     font-size: 12px;
-
-                //     a {
-                //         font-size: 12px;
-                //     }
-                // }
-
                 div.submenu-item {
                     font-size: 13px;
                 }
-
-
 
                 a {
                     padding-top: 5px;
@@ -278,40 +261,34 @@ header {
                     font-size: 13px;
                     text-align: center;
                     display: block;
-                    // padding-top: 10px;
-                    // padding-bottom: 10px;
                     color: #ffffff;
                     text-decoration: none;
-
                     transition: background-color 0.3s ease;
                     border-radius: 0px;
 
                     &:hover {
-                        background-color: #8a2be2; // Dark hover effect for submenu links
+                        background-color: #8a2be2;
                     }
                 }
             }
 
             &:hover .submenu {
-                display: block; // Show submenu on hover
+                display: block;
             }
 
-            // Submenu-item for sub-submenu
             .submenu-item {
                 position: relative;
 
                 &:hover .sub-submenu {
-                    display: block; // Show sub-submenu on hover
+                    display: block;
                 }
-
-
 
                 .sub-submenu {
                     font-size: 13px;
-                    display: none; // Hide sub-submenu initially
+                    display: none;
                     position: absolute;
                     top: 0;
-                    left: 100%; // Position the sub-submenu to the right of submenu
+                    left: 100%;
                     background-color: #1e1e1e;
                     border-radius: 5px;
                     min-width: 150px;
@@ -327,17 +304,13 @@ header {
 
                     a {
                         font-size: 13px;
-                        // padding: 10px;
-                        // padding-top: 5px;
-                        // padding-bottom: 5px;
                         display: block;
                         color: #ffffff;
                         text-decoration: none;
-                        // font-size: 14px;
                         transition: background-color 0.3s ease;
 
                         &:hover {
-                            background-color: #8a2be2; // Dark hover effect for sub-submenu links
+                            background-color: #8a2be2;
                         }
                     }
                 }
@@ -346,7 +319,6 @@ header {
 
         a {
             display: block;
-            // padding: 10px 15px;
             color: #ffffff;
             text-decoration: none;
             width: 100%;
@@ -361,19 +333,11 @@ header {
             }
         }
     }
-
 }
 
-
-
-
-
-
-
 .chat-section-left-padding {
-    width: 25%;
-    // background-color: #1e1e1e;
-    background-color: rgba(255, 0, 0, 0);
+    width: 0%;
+    background-color: red;
     padding: 20px;
     border-radius: 10px;
     color: #ffffff;
@@ -383,30 +347,29 @@ header {
     position: sticky;
     top: 10vh;
     margin-left: 10px;
-    margin-right: 10px;
-
 }
 
 .chat-container {
-    position: absolute;
+    flex-grow: 1;
+    width: 100%;
     display: flex;
     justify-content: space-between;
     padding: 20px;
+    padding-bottom: 160px;
     background-color: #2c2c2c;
-    height: auto;
-    /* Ensure the container takes full viewport height */
-    width: 98vw;
-    z-index: 50; // Reduced to make sure the chat doesn't interfere with the header
-    top: 11.5vh;
+    min-height: calc(100vh - 180px);
+    position: relative;
+    top: 80px;
 }
 
 .chat-section {
-    width: 70%;
+    width: 85%;
     display: flex;
     flex-direction: column;
     padding-right: 20px;
     margin-left: 20px;
-    height: auto;
+    margin-right: 20px;
+    flex-grow: 1;
 
     .chat-header {
         display: flex;
@@ -425,7 +388,7 @@ header {
         border-radius: 10px;
         color: #ffffff;
         flex-grow: 1;
-        // overflow-y: auto;
+        overflow-y: auto;
 
         .message {
             margin-bottom: 15px;
@@ -439,7 +402,7 @@ header {
             .system-sender {
                 font-weight: bold;
                 margin-bottom: 5px;
-                color: #FFA500; // Orange color for system messages
+                color: #FFA500;
             }
 
             .text {
@@ -472,6 +435,7 @@ header {
 
     .chat-input {
         display: flex;
+        flex-direction: row;
         align-items: center;
         background-color: #1e1e1e;
         border-radius: 10px;
@@ -487,8 +451,9 @@ header {
             .image_upload {
                 padding-top: 5px;
                 padding-left: 15px;
-                width: 30px;
-                height: 30px;
+                width: 40px;
+                height: auto;
+                transform: rotate(180deg);
             }
         }
 
@@ -507,7 +472,7 @@ header {
             border: none;
             border-radius: 25px;
             width: 50px;
-            height: 60px;
+            height: 50px;
             cursor: pointer;
             display: flex;
             align-items: center;
