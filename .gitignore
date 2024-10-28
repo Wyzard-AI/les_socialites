@@ -4,3 +4,6 @@ data_dumps/
 config.json
 cloud_sql_proxy
 wyzard_test*
+wyzard/
+templates/app/public
+flask_app/__pycache__/custom_session.cpython-311.pyc
