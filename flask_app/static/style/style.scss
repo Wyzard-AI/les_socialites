@@ -202,7 +202,7 @@ header {
     left: 62%;
     transform: translateX(-50%);
     color: #FFA500;
-    font-size: 12px;
+    font-size: 11px;
     text-align: center;
     z-index: 1100;
     width: 80%;
@@ -212,13 +212,13 @@ header {
 
 @media (max-width: 1024px) {
     .disclaimer {
-        font-size: 8px;
+        font-size: 7px;
     }
 }
 
 @media (max-width: 768px) {
     .disclaimer {
-        font-size: 6px;
+        font-size: 5px;
     }
 }
 

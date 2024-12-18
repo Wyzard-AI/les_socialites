@@ -96,21 +96,22 @@
         }
 
         .hero .overlay h1 {
-            font-size: 55px;
+            font-size: 65px;
             line-height: 1.2;
             margin: 0 0 40px 0;
             letter-spacing: 2px;
+            text-align: center;
         }
 
         .hero .overlay .btn-container {
             position: absolute;
             top: 60%;
-            left: 4.5%;
+            left: 6.5%;
             transform: translateY(-50%);
             display: flex;
             justify-content: flex-start;
             align-items: center;
-            margin-top: 45px;
+            margin-top: 60px;
         }
 
         .hero .overlay .btn-watch-demo {
@@ -123,7 +124,7 @@
             cursor: pointer;
             border-radius: 45px;
             text-decoration: none;
-            font-size: 22px;
+            font-size: 30px;
             text-transform: uppercase;
             box-shadow: none;
             transition: all 0.3s ease;
@@ -162,7 +163,7 @@
             }
 
             .hero .overlay h1 {
-                font-size: 40px; /* Scaled for smaller screens */
+                font-size: 40px;
             }
 
             .hero .overlay {
@@ -170,12 +171,12 @@
             }
 
             .hero .overlay .btn-watch-demo {
-                font-size: 20px; /* Adjusted for responsiveness */
+                font-size: 20px;
                 padding: 12px 25px;
             }
             .hero .overlay .btn-container {
                 margin-top: 28px;
-                left: 3.8%;
+                left: 5.2%;
             }
         }
 
@@ -189,7 +190,7 @@
             }
 
             .hero .overlay h1 {
-                font-size: 30px; /* Further scaling */
+                font-size: 30px;
             }
 
             .hero .overlay .btn-watch-demo {
@@ -199,7 +200,7 @@
 
             .hero .overlay .btn-container {
                 margin-top: 15px;
-                left: 3%;
+                left: 4%;
             }
         }
 
@@ -379,12 +380,10 @@
     <div class="hero">
         <img src="{{ url_for('static', filename='hero_banner.svg') }}" alt="Hero Image">
         <div class="overlay">
-            <div class="left-content">
-                <h1>
-                    WORK,<br>
-                    SMARTER
-                </h1>
-            </div>
+            <h1>
+                WORK,<br>
+                SMARTER
+            </h1>
             <div class="btn-container">
                 <a href="{{ url_for('watch_demo') }}" class="btn-watch-demo">Watch Demo</a>
             </div>
