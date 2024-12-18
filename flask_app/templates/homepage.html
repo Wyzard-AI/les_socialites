@@ -98,13 +98,24 @@
         .hero .overlay h1 {
             font-size: 55px;
             line-height: 1.2;
-            margin: 0 0 30px 0;
+            margin: 0 0 40px 0;
             letter-spacing: 2px;
+        }
+
+        .hero .overlay .btn-container {
+            position: absolute;
+            top: 60%;
+            left: 4.5%;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-top: 45px;
         }
 
         .hero .overlay .btn-watch-demo {
             position: relative;
-            margin-top: 15px;
+            margin: 0;
             padding: 15px 35px;
             background: transparent;
             border: 3px solid transparent;
@@ -127,7 +138,7 @@
             bottom: -3px;
             background: url('{{ url_for("static", filename="watch_demo_button2.png") }}') no-repeat center center;
             background-size: cover;
-            border-radius: 45px;
+            border-radius: 30px;
             z-index: -1;
             pointer-events: none;
         }
@@ -136,7 +147,6 @@
             transform: scale(1.05);
             box-shadow: none;
         }
-
 
         .hero .overlay .btn-watch-demo {
             margin-top: 40px;
@@ -147,29 +157,35 @@
         }
 
         @media (max-width: 1024px) {
-            .hero .overlay {
-                flex-direction: column; /* Stack content */
-                align-items: center; /* Center-align stacked content */
-                text-align: center;
-            }
-
-            .hero .overlay .left-content {
-                margin-bottom: 20px; /* Adds spacing between stacked items */
+            .header {
+                padding: 10px 5%;
             }
 
             .hero .overlay h1 {
                 font-size: 40px; /* Scaled for smaller screens */
             }
 
+            .hero .overlay {
+                padding: 0 5%;
+            }
+
             .hero .overlay .btn-watch-demo {
                 font-size: 20px; /* Adjusted for responsiveness */
                 padding: 12px 25px;
+            }
+            .hero .overlay .btn-container {
+                margin-top: 28px;
+                left: 3.8%;
             }
         }
 
         @media (max-width: 768px) {
             .header {
                 padding: 10px 5%;
+            }
+
+            .hero .overlay {
+                padding: 0 5%;
             }
 
             .hero .overlay h1 {
@@ -179,6 +195,11 @@
             .hero .overlay .btn-watch-demo {
                 font-size: 18px;
                 padding: 10px 20px;
+            }
+
+            .hero .overlay .btn-container {
+                margin-top: 15px;
+                left: 3%;
             }
         }
 
@@ -363,6 +384,8 @@
                     WORK,<br>
                     SMARTER
                 </h1>
+            </div>
+            <div class="btn-container">
                 <a href="{{ url_for('watch_demo') }}" class="btn-watch-demo">Watch Demo</a>
             </div>
         </div>
