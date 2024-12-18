@@ -266,8 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         chatMessagesContainer.innerHTML = ''; // Clear old messages before displaying new ones
 
+        let firstUserMessageHidden = false;
+
         conversation.forEach(message => {
             let displayMessage = true;
+
+            // Hide the first user message if not an admin
+            if (message.role === 'user' && !isAdmin && !firstUserMessageHidden) {
+                firstUserMessageHidden = true; // Mark the first user message as hidden
+                displayMessage = false;
+            }
 
             // Only display system messages if the user is an admin
             if (message.role === 'system' && !isAdmin) {

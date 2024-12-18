@@ -95,5 +95,5 @@ class CloudSQLSessionInterface(SessionInterface):
                 connection.close()
 
         session_cookie_name = app.config.get('SESSION_COOKIE_NAME', 'session')
-        expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expires = datetime.now(timezone.utc) + timedelta(minutes=720)
         response.set_cookie(session_cookie_name, session.sid, expires=expires)

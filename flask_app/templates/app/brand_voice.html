@@ -21,12 +21,14 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
 
         .main-content {
             flex: 1;
-            padding: 0px;
+            padding: 0;
         }
 
         .form-container {
@@ -86,14 +88,38 @@
         }
 
         .flash-message.success {
-            background-color: #39ff14; /* Green for success */
+            background-color: #39ff14;
             color: #121212;
         }
 
         .flash-message.error {
-            background-color: #ff4444; /* Red for errors */
+            background-color: #ff4444;
             color: #ffffff;
         }
+
+        .back-button {
+            margin-top: 20px;
+            background-color: #8a2be2;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 16px;
+            display: inline-block;
+            text-align: center;
+            width: auto;
+            cursor: pointer;
+            border: none;
+        }
+
+        .back-button:hover {
+            background-color: #6a1db7;
+        }
+
+        .logo img {
+            cursor: pointer;
+        }
+
     </style>
 </head>
 <body>
@@ -109,6 +135,7 @@
                 {% endif %}
             {% endwith %}
         </div>
+
         <div class="form-container">
             <h1>Select Your Brand Voice</h1>
             <form action="{{ url_for('save_brand_voice') }}" method="POST">
@@ -128,6 +155,7 @@
                 <button type="submit" class="submit-button">Save Brand Voice</button>
             </form>
         </div>
+        <a href="/app/conversations" class="back-button">Back to Conversations</a>
     </div>
 </body>
 </html>
