@@ -20,7 +20,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
+            padding: 20px 6%;
             background-color: #ffffff;
         }
 
@@ -31,7 +31,7 @@
 
         .header .branding img {
             height: 70px;
-            margin-left: 75px;
+            margin-left: 0;
         }
 
         .header .nav-links {
@@ -72,8 +72,9 @@
 
         .hero img {
             width: 100%;
-            height: 750px;
+            height: auto;
             object-fit: cover;
+            max-height: 750px;
         }
 
         .hero .overlay {
@@ -85,31 +86,33 @@
             justify-content: space-between;
             align-items: center;
             transform: translateY(-50%);
-            padding: 0 8%;
+            padding: 0 6%;
+            flex-wrap: wrap;
         }
 
         .hero .overlay .left-content {
             text-align: left;
+            flex: 1;
         }
 
         .hero .overlay h1 {
-            font-size: 65px;
+            font-size: 55px;
             line-height: 1.2;
-            margin: 0 0 40px 0;
+            margin: 0 0 30px 0;
             letter-spacing: 2px;
         }
 
         .hero .overlay .btn-watch-demo {
             position: relative;
             margin-top: 15px;
-            padding: 18px 35px;
+            padding: 15px 35px;
             background: transparent;
             border: 3px solid transparent;
             color: #ffffff;
             cursor: pointer;
             border-radius: 45px;
             text-decoration: none;
-            font-size: 25px;
+            font-size: 22px;
             text-transform: uppercase;
             box-shadow: none;
             transition: all 0.3s ease;
@@ -122,7 +125,7 @@
             left: -3px;
             right: -3px;
             bottom: -3px;
-            background: url('{{ url_for("static", filename="watch_demo_button.png") }}') no-repeat center center;
+            background: url('{{ url_for("static", filename="watch_demo_button2.png") }}') no-repeat center center;
             background-size: cover;
             border-radius: 45px;
             z-index: -1;
@@ -141,6 +144,42 @@
 
         .hero .overlay .right-content {
             text-align: right;
+        }
+
+        @media (max-width: 1024px) {
+            .hero .overlay {
+                flex-direction: column; /* Stack content */
+                align-items: center; /* Center-align stacked content */
+                text-align: center;
+            }
+
+            .hero .overlay .left-content {
+                margin-bottom: 20px; /* Adds spacing between stacked items */
+            }
+
+            .hero .overlay h1 {
+                font-size: 40px; /* Scaled for smaller screens */
+            }
+
+            .hero .overlay .btn-watch-demo {
+                font-size: 20px; /* Adjusted for responsiveness */
+                padding: 12px 25px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 10px 5%;
+            }
+
+            .hero .overlay h1 {
+                font-size: 30px; /* Further scaling */
+            }
+
+            .hero .overlay .btn-watch-demo {
+                font-size: 18px;
+                padding: 10px 20px;
+            }
         }
 
         .key-features {
