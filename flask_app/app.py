@@ -237,15 +237,27 @@ def get_openai_assistant_response(openai_client, conversation=None):
 
         instructions += brand_voice_instructions
 
+        website_summary = get_website_summary(business_name)
+
+        if website_summary is None:
+            website_summary_instructions = ""
+        else:
+            website_summary_instructions = f"""Website Summary Instructions:
+            When the prompt is received, analyze if it is about a website. If so, check to see if the following summary is related to the website in the prompt. If yes, then use this as the context for answering the prompt: {website_summary}."""
+
+        instructions += website_summary_instructions
+
         if instructions == "":
             instructions = "There are no special instructions just answer the prompt."
         else:
             instructions = f"""
-            At the beginning of the conversation, you will receive 2 sets of instructions for answering subsequent prompts:
+            At the beginning of the conversation, you will potentially receive 3 sets of instructions for answering subsequent prompts:
 
-            1) Knowledge Base Instructions and 2) Brand Voice Instructions.
+            1) Knowledge Base Instructions, 2) Brand Voice Instructions, and 3) Website Summary Instructions.
 
-            Prioritize those instructions in this order: 1) then 2).
+            Prioritize those instructions in this order: 1), 2), and then 3).
+
+            Also, please do not hallucinate or attempt to lie when answering the prompts.
 
             {instructions}
             """
@@ -427,6 +439,40 @@ def get_brand_voice(business_name):
 
 
 
+def get_website_summary(business_name):
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # SQL query to retrieve the website summary for the given business name
+        select_query = """
+            SELECT summary
+            FROM app.summaries
+            WHERE business_name = %s
+            ORDER BY created_at DESC
+            LIMIT 1;
+        """
+        cursor.execute(select_query, (business_name,))
+        result = cursor.fetchone()
+
+        if result:
+            website_summary = result[0]  # Extract summary from the result
+            return website_summary
+        else:
+            return None  # Return None if no summary is found
+
+    except Exception as e:
+        print(f"An error occurred while retrieving the website summary: {e}")
+        return None
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+
 def pass_prompt_to_retrieve_openai_assistant_response(prompt):
     # Generate or get session_id and user_id
     user_id = current_user.id
@@ -484,7 +530,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-app.permanent_session_lifetime = timedelta(minutes=30)
+app.permanent_session_lifetime = timedelta(minutes=720)
 
 # Using CloudSQL to manage server-side conversation storage and session management
 app.session_interface = CloudSQLSessionInterface()
@@ -494,7 +540,7 @@ app.config['SESSION_COOKIE_NAME'] = 'session'
 # Set config for max size of document upload
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024
 # Set config for cache duration of static files
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 86400 # 1 day in seconds
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 60
 
 # CloudSQL Connection
 connector = Connector()
@@ -620,7 +666,6 @@ def register():
         "jenny@lessocialites.com",
         "ruth@lessocialites.com",
         "imen@lessocialites.com",
-        "felix@lessocialites.com",
         "ari@lessocialites.com",
         "gladys@lessocialites.com",
         "michael@lessocialites.com",
@@ -858,7 +903,6 @@ def product_legal():
 
 @app.route('/app/brand-voice')
 @login_required
-@restricted_access
 def brand_voice():
     return render_template('app/brand_voice.html')
 
@@ -967,8 +1011,13 @@ def send_typed_prompt_for_openai_assistant_response():
     prompt = request.form.get('prompt')
     file = request.files.get('file')
 
-    if not prompt:
+    # If no prompt and no file, return an error
+    if not prompt and not file:
         return jsonify({"error": "Prompt is required"}), 400
+
+    # If no prompt but a file exists, set a default prompt
+    if not prompt and file and file.filename != '' and allowed_file(file.filename):
+        prompt = "Review the following document uploaded. If it's marked as being confidential, you have permission to analyze it."
 
     # Process the file if one is uploaded
     file_text = ''
@@ -1015,6 +1064,7 @@ def delete_conversation():
 
 @app.route('/app/save-brand-voice', methods=['POST'])
 @login_required
+@restricted_access
 def save_brand_voice():
     business_name = session.get('business_name')
     brand_voices = request.form.getlist('brand_voice')  # Get list of selected brand voices
@@ -1174,6 +1224,7 @@ def delete_knowledge_instructions():
 
 @app.route('/app/add-link', methods=['GET', 'POST'])
 @login_required
+@restricted_access
 def add_link():
     if request.method == 'POST':
         url = request.form['url']
@@ -1317,37 +1368,25 @@ def forgot_password_submit():
 def homepage():
     return render_template('homepage.html')
 
-
-
 @app.route('/features')
 def features():
     return render_template('features.html')
-
-
 
 @app.route('/case-studies')
 def case_studies():
     return render_template('case_studies.html')
 
-
-
 @app.route('/pricing')
 def pricing():
     return render_template('pricing.html')
-
-
 
 @app.route('/faq')
 def faq():
     return render_template('faq.html')
 
-
-
 @app.route('/blog')
 def blog():
     return render_template('blog.html')
-
-
 
 @app.route('/get-started')
 def get_started():
@@ -1357,7 +1396,9 @@ def get_started():
 def about_us():
     return render_template('about_us.html')
 
-
+@app.route('/watch-demo')
+def watch_demo():
+    return render_template('watch_demo.html')
 
 @app.route('/contact_us')
 def contact_us():
@@ -1366,8 +1407,6 @@ def contact_us():
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
-
-
 
 @app.route('/terms-conditions')
 def terms_conditions():

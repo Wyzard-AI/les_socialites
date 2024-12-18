@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Homepage</title>
+    <title>Wyzard Home</title>
     <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
     <style>
         body {
@@ -13,13 +13,14 @@
             padding: 0;
             background-color: #ffffff;
             color: #121212;
+            overflow-x: hidden;
         }
 
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px;
+            padding: 10px;
             background-color: #ffffff;
         }
 
@@ -30,10 +31,12 @@
 
         .header .branding img {
             height: 70px;
+            margin-left: 75px;
         }
 
         .header .nav-links {
             display: flex;
+            align-items: center;
             gap: 20px;
         }
 
@@ -42,6 +45,23 @@
             color: #121212;
             padding: 5px;
             font-size: 18px;
+        }
+
+        .header .nav-links .login-button {
+            text-decoration: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            color: white;
+            background: linear-gradient(75deg, #b602fe 30%, #315de3 70%);
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(138, 43, 226, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .header .nav-links .login-button:hover {
+            background: linear-gradient(75deg, #d786f7 30%, #6a89e3 70%);
+            box-shadow: 0 6px 12px rgba(75, 0, 130, 0.6);
         }
 
         .hero {
@@ -59,65 +79,166 @@
         .hero .overlay {
             position: absolute;
             top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transform: translateY(-50%);
+            padding: 0 8%;
         }
 
-        .hero .overlay h2 {
-            font-size: 36px;
-            margin: 0;
-            margin-bottom: 20px;
+        .hero .overlay .left-content {
+            text-align: left;
         }
 
-        .hero .overlay .btn-get-started {
-            margin-top: 40px;
-            padding: 10px 20px;
-            background-color: #8a2be2;
-            border: none;
-            color: white;
+        .hero .overlay h1 {
+            font-size: 65px;
+            line-height: 1.2;
+            margin: 0 0 40px 0;
+            letter-spacing: 2px;
+        }
+
+        .hero .overlay .btn-watch-demo {
+            position: relative;
+            margin-top: 15px;
+            padding: 18px 35px;
+            background: transparent;
+            border: 3px solid transparent;
+            color: #ffffff;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 45px;
             text-decoration: none;
+            font-size: 25px;
+            text-transform: uppercase;
+            box-shadow: none;
+            transition: all 0.3s ease;
         }
 
-        .section {
-            padding: 40px 20px;
-            text-align: center;
-            border-bottom: 1px solid #ddd;
+        .hero .overlay .btn-watch-demo::before {
+            content: "";
+            position: absolute;
+            top: -3px;
+            left: -3px;
+            right: -3px;
+            bottom: -3px;
+            background: url('{{ url_for("static", filename="watch_demo_button.png") }}') no-repeat center center;
+            background-size: cover;
+            border-radius: 45px;
+            z-index: -1;
+            pointer-events: none;
         }
 
-        .section h3 {
-            margin-bottom: 20px;
-            font-size: 200%;
+        .hero .overlay .btn-watch-demo:hover {
+            transform: scale(1.05);
+            box-shadow: none;
         }
 
-        .video-demo video {
-            width: 40%;
+
+        .hero .overlay .btn-watch-demo {
+            margin-top: 40px;
+        }
+
+        .hero .overlay .right-content {
+            text-align: right;
         }
 
         .key-features {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 25px;
+            justify-content: space-around;
+            padding: 40px 20px;
         }
 
-        .key-features img {
-            width: 25%;
+        .key-feature-column {
+            text-align: center;
+            width: 20%;
         }
 
-        .key-features .features-info {
-            text-align: left;
-            padding: 20px;
+        .key-feature-column h4 {
+            font-size: 24px;
+            margin-bottom: 20px;
         }
 
-        .key-features .features-info p {
-            margin: 15px 0;
+        .key-feature-column .details-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: linear-gradient(75deg, #b602fe 30%, #315de3 70%);
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 30px;
+            text-decoration: none;
+            font-size: 16px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
-        .key-features .features-info p strong {
-            font-weight: bold;
+        .key-feature-column .details-button:hover {
+            background: linear-gradient(75deg, #d786f7 30%, #6a89e3 70%);
+        }
+
+        .key-feature-column p {
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .divider {
+            width: 100%;
+            height: 1px;
+            background-color: #ddd;
+            margin: 30px 0;
+        }
+
+        .review-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 0;
+            box-sizing: border-box;
+        }
+
+        .review {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        .review {
+            margin: 10px 0;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .review p {
+            margin: 10px 0;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .review strong {
+            font-size: 18px;
+        }
+
+        .review .author {
+            font-style: italic;
+            color: grey;
+            margin-top: 10px;
+        }
+
+        .review p:nth-child(2) {
+            font-size: 20px;
+            color: #ffc107;
+        }
+
+        @media (max-width: 768px) {
+            .review-container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
         }
 
         .footer {
@@ -143,7 +264,7 @@
             padding: 10px;
             border: none;
             border-radius: 4px;
-            width: 350px; /* Set a fixed width or adjust as needed */
+            width: 350px;
             max-width: 100%;
         }
 
@@ -178,22 +299,7 @@
             color: #e0e0e0;
             font-size: 16px;
         }
-
-        .review {
-            font-style: italic;
-            margin-top: 20px;
-            font-size: 150%;
-        }
-
-        .review .author {
-            font-style: normal;
-            font-size: 14px;
-            color: #999;
-        }
     </style>
-
-    <!-- Include Font Awesome for social media icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="header">
@@ -201,44 +307,90 @@
             <img src="{{ url_for('static', filename='wyzard_favicon.png') }}" alt="Wyzard Logo">
         </div>
         <nav class="nav-links">
-            <a href="{{ url_for('login') }}">Login</a>
             <a href="{{ url_for('features') }}">Features</a>
             <a href="{{ url_for('case_studies') }}">Case Studies</a>
             <a href="{{ url_for('pricing') }}">Pricing</a>
             <a href="{{ url_for('faq') }}">FAQ</a>
             <a href="{{ url_for('blog') }}">Blog</a>
+            <a href="{{ url_for('login') }}" class="login-button">Login / Signup</a>
         </nav>
     </div>
 
     <div class="hero">
-        <img src="{{ url_for('static', filename='homepage_hero.png') }}" alt="Hero Image">
+        <img src="{{ url_for('static', filename='hero_banner.svg') }}" alt="Hero Image">
         <div class="overlay">
-            <h2>Your All-In-One AI Tool</h2>
-            <a href="{{ url_for('get_started') }}" class="btn-get-started">Get Started</a>
+            <div class="left-content">
+                <h1>
+                    WORK,<br>
+                    SMARTER
+                </h1>
+                <a href="{{ url_for('watch_demo') }}" class="btn-watch-demo">Watch Demo</a>
+            </div>
         </div>
     </div>
 
-    <div class="section video-demo">
-        <h3>Video Demo</h3>
-        <video controls>
-            <source src="{{ url_for('static', filename='demo_video.mp4') }}" type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
-    </div>
-
-    <div class="section key-features">
-        <img src="{{ url_for('static', filename='features_left_2.png') }}" alt="Computer Screen">
-        <div class="features-info">
-            <h3>Key Features</h3>
-            <p><strong>Brand Voice:</strong> Make sure all your content sounds just like you</p>
-            <p><strong>Knowledge Base:</strong> Add your website, your presentations, your documents, and any other info you want about your business</p>
-            <p><strong>25 Trained Assistants:</strong> Ready to tackle every task your business might need help with</p>
+    <div class="key-features">
+        <div class="key-feature-column">
+            <h4>AI Assistants</h4>
+            <p>Over 25 pre-trained assistants in a range of functions from marketing to customer service ready to tackle every task your business might need</p>
+            <a href="#" class="details-button">Details</a>
+        </div>
+        <div class="key-feature-column">
+            <h4>Brand Voice</h4>
+            <p>Customize the tone of voice for your content generation needs so your brand always sounds consistent and stays on point</p>
+            <a href="#" class="details-button">Details</a>
+        </div>
+        <div class="key-feature-column">
+            <h4>Knowledge Base</h4>
+            <p>Instantly add your website, documents, memos, and other information to customize a common business context for all your employees</p>
+            <a href="#" class="details-button">Details</a>
         </div>
     </div>
 
-    <div class="section review">
-        <p>"This tool has revolutionized how we work!"</p>
-        <p class="author">John Doe from USA</p>
+    <div class="divider"></div>
+
+    <div class="review-container">
+        <div class="review">
+            <p><strong>Saved Me Hours Every Week</strong></p>
+            <p>⭐⭐⭐⭐⭐</p>
+            <p>“I’m a solo entrepreneur, and Wyzard.io has become my secret weapon. From creating content to automating workflows, it’s saved me 10+ hours every week. Now, I focus on growing my business instead of getting stuck in the weeds. Worth every penny.”</p>
+            <p class="author">– Melissa P., Freelancer</p>
+        </div>
+
+        <div class="review">
+            <p><strong>Better Than Hiring an Agency</strong></p>
+            <p>⭐⭐⭐⭐⭐</p>
+            <p>“I was spending thousands on tools before discovering Wyzard.io. Now, I generate better leads and higher revenue at a fraction of the cost. It’s honestly like having a marketing genius working for you 24/7. Hands down the best investment I’ve made this year!”</p>
+            <p class="author">– Ryan K., SaaS Founder</p>
+        </div>
+
+        <div class="review">
+            <p><strong>From Struggling to Scaling</strong></p>
+            <p>⭐⭐⭐⭐⭐</p>
+            <p>“I was skeptical, but after seeing the results, I’m blown away. Wyzard.io helped me refine my messaging, optimize my campaigns, and triple my sales in 60 days. It’s not just a tool; it’s a growth engine. Don’t think twice—just get it.”</p>
+            <p class="author">– Sophia L., Small Business Owner</p>
+        </div>
+
+        <div class="review">
+            <p><strong>Perfect for Teams and Solo Entrepreneurs</strong></p>
+            <p>⭐⭐⭐⭐⭐</p>
+            <p>“My team loves using Wyzard.io. It’s intuitive, fast, and the AI tools are on another level. We’ve scaled our campaigns with less effort and more profit. If you’re looking for an edge in your market, this is it.”</p>
+            <p class="author">– Lucas M., Marketing Manager</p>
+        </div>
+
+        <div class="review">
+            <p><strong>Game-Changer for My Business</strong></p>
+            <p>⭐⭐⭐⭐⭐</p>
+            <p>“Wyzard.io is an absolute game-changer. Within weeks of using their AI-driven tools, I saw a 30% increase in conversions. The platform is ridiculously simple to use, and the results speak for themselves. It’s like having an entire marketing team on autopilot. Highly recommend!”</p>
+            <p class="author">– Amanda R., E-commerce Store Owner</p>
+        </div>
+
+        <div class="review">
+            <p><strong>The ROI is Insane</strong></p>
+            <p>⭐⭐⭐⭐⭐</p>
+            <p>“I’ve spent years wasting money on tools that promise results but deliver fluff. Wyzard.io is different. I made back the monthly fee 10x within the first month. This tool practically prints money for you if you use it right. No brainer!”</p>
+            <p class="author">– John T., Digital Marketer</p>
+        </div>
     </div>
 
     <div class="footer">
@@ -248,7 +400,6 @@
                 <input type="email" name="email" placeholder="Your email" required>
                 <button type="submit">Subscribe</button>
             </form>
-            <p id="newsletter-message"></p> <!-- Element to display success/error messages -->
         </div>
         <div class="footer-links">
             <div class="link-column">

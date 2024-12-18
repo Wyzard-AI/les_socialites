@@ -1,6 +1,8 @@
 <!-- logo.html -->
 <div class="logo-container">
-    <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
+    <a href="/app/conversations">
+        <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
+    </a>
 </div>
 
 <style>
@@ -14,5 +16,10 @@
     .logo {
         width: 150px; /* Adjust the logo size */
         height: auto; /* Maintain aspect ratio */
+        cursor: pointer; /* Show pointer cursor to indicate clickability */
+    }
+
+    .logo-container a {
+        text-decoration: none; /* Remove underline from link */
     }
 </style>

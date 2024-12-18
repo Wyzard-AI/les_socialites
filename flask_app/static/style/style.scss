@@ -195,6 +195,20 @@ header {
     }
 }
 
+.disclaimer {
+    position: absolute;
+    top: 0;
+    left: 60%;
+    transform: translateX(-50%);
+    color: #FFA500;
+    font-size: 14px;
+    text-align: center;
+    z-index: 1200;
+    width: auto;
+    background-color: transparent;
+    padding: 10px 20px;
+}
+
 .assistance-box {
     position: relative;
     width: 20%;
@@ -293,6 +307,9 @@ header {
                     border-radius: 5px;
                     min-width: 150px;
                     border: 2px solid white;
+                    max-height: 200px; /* Default height for scrolling */
+                    overflow-y: scroll; /* Show scrollbar */
+                    z-index: 10; /* Ensure it appears above other elements */
 
                     div.submenu-item {
                         font-size: 12px;
@@ -313,6 +330,27 @@ header {
                             background-color: #8a2be2;
                         }
                     }
+                }
+
+                /* Adjustments for screens less than 14" (1366px width or 800px height) */
+                @media (max-width: 1366px), (max-height: 800px) {
+                    .sub-submenu {
+                        max-height: 125px; /* Reduce height for smaller screens */
+                    }
+                }
+
+                /* Custom scrollbar styles (optional for better appearance) */
+                .sub-submenu::-webkit-scrollbar {
+                    width: 8px; /* Width of scrollbar */
+                }
+
+                .sub-submenu::-webkit-scrollbar-thumb {
+                    background-color: #8a2be2; /* Scrollbar thumb color */
+                    border-radius: 4px; /* Rounded corners */
+                }
+
+                .sub-submenu::-webkit-scrollbar-track {
+                    background-color: #1e1e1e; /* Scrollbar track color */
                 }
             }
         }
