@@ -35,6 +35,23 @@ document.addEventListener('DOMContentLoaded', () => {
     initChatFunctionality();
     initChatForm();
     initLogout();
+    showLoadingAnimation();
+    hideLoadingAnimation();
+
+    // Utility functions for loading animation
+    function showLoadingAnimation() {
+        const loadingAnimation = document.getElementById('loading-animation');
+        if (loadingAnimation) {
+            loadingAnimation.style.display = 'flex'; // Ensure it's displayed
+        }
+    }
+
+    function hideLoadingAnimation() {
+        const loadingAnimation = document.getElementById('loading-animation');
+        if (loadingAnimation) {
+            loadingAnimation.style.display = 'none'; // Hide it
+        }
+    }
 
     // Function for initializing the newsletter form submission
     function initNewsletterForm() {
@@ -142,8 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subcategory = event.target.closest('.submenu-item').getAttribute('data-subcategory');
                 const category = event.target.closest('.button').getAttribute('data-category');
 
-                const loadingAnimation = document.getElementById('loading-animation');
-                if (loadingAnimation) loadingAnimation.style.display = 'flex';
+                showLoadingAnimation();
 
                 lastMessageIndex = 0;
                 clearChatWindow();
@@ -154,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(error => console.error('Error fetching conversation:', error))
                     .finally(() => {
-                        if (loadingAnimation) loadingAnimation.style.display = 'none';
+                        hideLoadingAnimation();
                     });
             }
         });
@@ -171,8 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const promptInput = document.getElementById('chat-input').value;
             formData.append('prompt', promptInput);
 
-            const loadingAnimation = document.getElementById('loading-animation');
-            if (loadingAnimation) loadingAnimation.style.display = 'flex';
+            showLoadingAnimation();
 
             fetch('/send_typed_prompt_for_openai_assistant_response', {
                 method: 'POST',
@@ -193,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => console.error('Error submitting message:', error))
             .finally(() => {
-                if (loadingAnimation) loadingAnimation.style.display = 'none';
+                hideLoadingAnimation();
             });
         });
     }
