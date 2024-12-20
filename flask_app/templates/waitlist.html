@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Join the Waitlist - Wyzard</title>
+    <!-- <title>Join the Waitlist - Wyzard</title> -->
+    <title>Join the Beta Test - Wyzard</title>
     <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
     <style>
         body {
@@ -83,7 +84,8 @@
     <div class="container">
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
 
-        <h1>Join the Waitlist</h1>
+        <!-- <h1>Join the Waitlist</h1> -->
+        <h1>Join the Beta Test</h1>
 
         <div class="card">
             <form action="{{ url_for('submit_waitlist') }}" method="POST">
@@ -103,7 +105,8 @@
                     <label for="number_of_employees" class="form-label">Number of Employees:</label>
                     <input type="number" class="form-control" id="number_of_employees" name="number_of_employees" required>
                 </div>
-                <button type="submit" class="btn-primary">Join Waitlist</button>
+                <!-- <button type="submit" class="btn-primary">Join Waitlist</button> -->
+                <button type="submit" class="btn-primary">Join Beta Test</button>
             </form>
         </div>
     </div>

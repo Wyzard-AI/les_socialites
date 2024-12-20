@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wyzard Home</title>
     <link rel="icon" href="{{ url_for('static', filename='wyzard_favicon.png') }}" type="image/x-icon">
+    <link rel="preload" href="{{ url_for('static', filename='hero_banner_edit.svg') }}" as="image" type="image/svg+xml">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -45,6 +46,12 @@
             color: #121212;
             padding: 5px;
             font-size: 18px;
+        }
+
+        span {
+            color: inherit;
+            text-decoration: none;
+            cursor: default;
         }
 
         .header .nav-links .login-button {
@@ -120,14 +127,17 @@
             padding: 15px 35px;
             background: transparent;
             border: 3px solid transparent;
-            color: #ffffff;
-            cursor: pointer;
+            color: transparent;
+            /* cursor: pointer; */
+            cursor: default;
             border-radius: 45px;
             text-decoration: none;
             font-size: 30px;
             text-transform: uppercase;
             box-shadow: none;
-            transition: all 0.3s ease;
+            visibility: hidden;
+            opacity: 0;
+            animation: fade-in 1s ease forwards;
         }
 
         .hero .overlay .btn-watch-demo::before {
@@ -142,6 +152,17 @@
             border-radius: 30px;
             z-index: -1;
             pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .hero .overlay .btn-watch-demo.show-background::before {
+            opacity: 1;
+        }
+
+        .hero .overlay .btn-watch-demo.show-text {
+            color: #ffffff;
+            opacity: 1;
         }
 
         .hero .overlay .btn-watch-demo:hover {
@@ -155,6 +176,21 @@
 
         .hero .overlay .right-content {
             text-align: right;
+        }
+
+        @media (max-width: 1440px) {
+            .hero .overlay h1 {
+                font-size: 50px;
+            }
+
+            .hero .overlay .btn-container {
+                left: 6.8%;
+                margin-top: 40px;
+            }
+
+            .hero .overlay .btn-watch-demo {
+                font-size: 20px;
+            }
         }
 
         @media (max-width: 1024px) {
@@ -360,6 +396,15 @@
             color: #e0e0e0;
             font-size: 16px;
         }
+
+        .social-icon {
+            color: inherit;
+            text-decoration: none;
+            cursor: default;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
     </style>
 </head>
 <body>
@@ -368,27 +413,64 @@
             <img src="{{ url_for('static', filename='wyzard_favicon.png') }}" alt="Wyzard Logo">
         </div>
         <nav class="nav-links">
-            <a href="{{ url_for('features') }}">Features</a>
+            <!-- <a href="{{ url_for('features') }}">Features</a>
             <a href="{{ url_for('case_studies') }}">Case Studies</a>
             <a href="{{ url_for('pricing') }}">Pricing</a>
             <a href="{{ url_for('faq') }}">FAQ</a>
-            <a href="{{ url_for('blog') }}">Blog</a>
+            <a href="{{ url_for('blog') }}">Blog</a> -->
+            <span>Features</span>
+            <span>Case Studies</span>
+            <span>Pricing</span>
+            <span>FAQ</span>
+            <span>Blog</span>
             <a href="{{ url_for('login') }}" class="login-button">Login / Signup</a>
         </nav>
     </div>
 
     <div class="hero">
-        <img src="{{ url_for('static', filename='hero_banner.svg') }}" alt="Hero Image">
+        <img id="hero-banner" src="{{ url_for('static', filename='hero_banner_edit.svg') }}" alt="Hero Image">
         <div class="overlay">
             <h1>
                 WORK,<br>
                 SMARTER
             </h1>
             <div class="btn-container">
-                <a href="{{ url_for('watch_demo') }}" class="btn-watch-demo">Watch Demo</a>
+                <!-- <a href="{{ url_for('watch_demo') }}" class="btn-watch-demo">Watch Demo</a> -->
+                <span class="btn-watch-demo" style="visibility: hidden;">Watch Demo</span>
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const svg = document.getElementById('hero-banner');
+            const button = document.querySelector('.btn-watch-demo');
+
+            // Function to show the button background first
+            const showButtonBackground = () => {
+                button.style.visibility = 'visible'; // Make the button visible
+                button.classList.add('show-background'); // Trigger the CSS animation
+            };
+
+            // Function to reveal the button text
+            const showButtonText = () => {
+                button.classList.add('show-text'); // Trigger text appearance
+            };
+
+            if (svg.complete) {
+                // If the SVG is already loaded
+                showButtonBackground();
+                setTimeout(showButtonText, 500); // Delay the text loading
+            } else {
+                // Wait for the SVG to load
+                svg.addEventListener('load', () => {
+                    showButtonBackground();
+                    setTimeout(showButtonText, 500); // Delay the text loading
+                });
+            }
+        });
+    </script>
+
 
     <div class="key-features">
         <div class="key-feature-column">
@@ -465,20 +547,27 @@
         <div class="footer-links">
             <div class="link-column">
                 <h4>The Small Print</h4>
-                <a href="{{ url_for('about_us') }}">About Us</a>
+                <!-- <a href="{{ url_for('about_us') }}">About Us</a>
                 <a href="{{ url_for('contact_us') }}">Contact</a>
                 <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
-                <a href="{{ url_for('terms_conditions') }}">Terms and Conditions</a>
+                <a href="{{ url_for('terms_conditions') }}">Terms and Conditions</a> -->
+                <span>About Us</span>
+                <span>Contact</span>
+                <span>Privacy Policy</span>
+                <span>Terms and Conditions</span>
             </div>
             <div class="link-column">
                 <h4>Social Media</h4>
-                <a href="https://www.facebook.com" class="social-icon"><i class="fab fa-facebook"></i> Facebook</a>
+                <!-- <a href="https://www.facebook.com" class="social-icon"><i class="fab fa-facebook"></i> Facebook</a>
                 <a href="https://www.instagram.com" class="social-icon"><i class="fab fa-instagram"></i> Instagram</a>
-                <a href="https://www.linkedin.com" class="social-icon"><i class="fab fa-linkedin"></i> LinkedIn</a>
+                <a href="https://www.linkedin.com" class="social-icon"><i class="fab fa-linkedin"></i> LinkedIn</a> -->
+                <span class="social-icon"><i class="fab fa-facebook"></i> Facebook</span>
+                <span class="social-icon"><i class="fab fa-instagram"></i> Instagram</span>
+                <span class="social-icon"><i class="fab fa-linkedin"></i> LinkedIn</span>
             </div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='javascript/script.js') }}"></script>
+    <!-- <script src="{{ url_for('static', filename='javascript/script.js') }}"></script> -->
 </body>
 </html>

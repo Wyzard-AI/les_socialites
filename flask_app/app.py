@@ -540,7 +540,7 @@ app.config['SESSION_COOKIE_NAME'] = 'session'
 # Set config for max size of document upload
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024
 # Set config for cache duration of static files
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 60
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 2592000
 
 # CloudSQL Connection
 connector = Connector()
@@ -672,7 +672,8 @@ def register():
         "genevieve.beaudry@gmail.com",
         "team@lessocialites.com",
         "test@lessocialites.com",
-        "renaud.tester@gmail.com"
+        "renaud.tester@gmail.com",
+        "beaudrydiane6@gmail.com"
     ]
 
     if request.method == 'POST':
@@ -1270,7 +1271,8 @@ def submit_waitlist():
     # Add data to the Google Sheet
     try:
         waitlist_sheet.append_row([name, email, company_name, number_of_employees])
-        flash("You've been added to the waitlist!", "success")
+        # flash("You've been added to the waitlist!", "success")
+        flash("You've been added to the beta test!", "success")
     except Exception as e:
         flash(f"An error occurred: {e}", "error")
 
