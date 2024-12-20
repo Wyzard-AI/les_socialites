@@ -52,7 +52,7 @@ header .hamburger-menu .line {
 header .logo {
   display: flex;
   align-items: center;
-  margin-left: 30px;
+  margin-left: 40px;
   margin-right: 10px;
 }
 header .logo .logo-img {
@@ -83,7 +83,7 @@ header nav .nav-list .nav-item {
 header nav .nav-list .nav-item a {
   color: #ffffff;
   text-decoration: none;
-  font-size: 18px;
+  font-size: 16px;
 }
 header nav .nav-list .nav-item a:hover {
   cursor: pointer;
@@ -120,6 +120,7 @@ header nav .nav-list .nav-item .account-dropdown {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   min-height: 100%;
 }
 
@@ -177,33 +178,69 @@ header nav .nav-list .nav-item .account-dropdown {
 .disclaimer {
   position: absolute;
   top: 0;
-  left: 60%; /* Center horizontally */
+  left: 62%;
   transform: translateX(-50%);
   color: #FFA500;
-  font-size: 14px;
+  font-size: 11px;
   text-align: center;
-  z-index: 1200;
-  width: auto;
+  z-index: 1100;
+  width: 80%;
   background-color: transparent;
-  padding: 10px 20px;
+  padding-top: 15px;
 }
 
-.assistance-box {
-  position: relative;
-  width: 20%;
-  background-color: #1e1e1e;
+@media (max-width: 1024px) {
+  .disclaimer {
+    font-size: 7px;
+  }
+}
+@media (max-width: 768px) {
+  .disclaimer {
+    font-size: 5px;
+  }
+}
+.chat-section-left-padding {
+  width: 0%;
+  background-color: red;
   padding: 20px;
-  margin-left: 40px;
-  margin-bottom: 20px;
   border-radius: 10px;
   color: #ffffff;
   text-align: center;
   font-size: 16px;
-  min-height: 76vh;
-  top: 2vh;
-  z-index: 100;
+  max-height: 100vh;
+  position: sticky;
+  top: 10vh;
+  margin-left: 10px;
+}
+
+.chat-container {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  padding-bottom: 160px;
+  background-color: #2c2c2c;
+  min-height: calc(100vh - 180px);
+  position: relative;
+  top: 80px;
+}
+
+.assistance-box {
   display: flex;
   flex-direction: column;
+  border-radius: 10px;
+  background-color: #1e1e1e;
+  padding: 20px;
+  color: #ffffff;
+  flex: 1;
+  min-height: 76vh;
+  max-width: 25%;
+  margin-left: 40px;
+  margin-top: 20px;
+  text-align: center;
+  font-size: 16px;
+  width: 20%;
 }
 .assistance-box .spacer-assistance-box {
   background-color: #2c2c2c;
@@ -264,8 +301,6 @@ header nav .nav-list .nav-item .account-dropdown {
 }
 .assistance-box .assistant-buttons div.button .submenu-item {
   position: relative;
-  /* Adjustments for screens less than 14" (1366px width or 800px height) */
-  /* Custom scrollbar styles (optional for better appearance) */
 }
 .assistance-box .assistant-buttons div.button .submenu-item:hover .sub-submenu {
   display: block;
@@ -280,9 +315,9 @@ header nav .nav-list .nav-item .account-dropdown {
   border-radius: 5px;
   min-width: 150px;
   border: 2px solid white;
-  max-height: 200px; /* Default height for scrolling */
-  overflow-y: scroll; /* Show scrollbar */
-  z-index: 10; /* Ensure it appears above other elements */
+  max-height: 200px;
+  overflow-y: scroll;
+  z-index: 10;
 }
 .assistance-box .assistant-buttons div.button .submenu-item .sub-submenu div.submenu-item {
   font-size: 12px;
@@ -302,18 +337,18 @@ header nav .nav-list .nav-item .account-dropdown {
 }
 @media (max-width: 1366px), (max-height: 800px) {
   .assistance-box .assistant-buttons div.button .submenu-item .sub-submenu {
-    max-height: 125px; /* Reduce height for smaller screens */
+    max-height: 125px;
   }
 }
 .assistance-box .assistant-buttons div.button .submenu-item .sub-submenu::-webkit-scrollbar {
-  width: 8px; /* Width of scrollbar */
+  width: 8px;
 }
 .assistance-box .assistant-buttons div.button .submenu-item .sub-submenu::-webkit-scrollbar-thumb {
-  background-color: #8a2be2; /* Scrollbar thumb color */
-  border-radius: 4px; /* Rounded corners */
+  background-color: #8a2be2;
+  border-radius: 4px;
 }
 .assistance-box .assistant-buttons div.button .submenu-item .sub-submenu::-webkit-scrollbar-track {
-  background-color: #1e1e1e; /* Scrollbar track color */
+  background-color: #1e1e1e;
 }
 .assistance-box .assistant-buttons a {
   display: block;
@@ -330,41 +365,18 @@ header nav .nav-list .nav-item .account-dropdown {
   background-color: #8a2be2;
 }
 
-.chat-section-left-padding {
-  width: 0%;
-  background-color: red;
-  padding: 20px;
-  border-radius: 10px;
-  color: #ffffff;
-  text-align: center;
-  font-size: 16px;
-  max-height: 100vh;
-  position: sticky;
-  top: 10vh;
-  margin-left: 10px;
-}
-
-.chat-container {
-  flex-grow: 1;
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  padding: 20px;
-  padding-bottom: 160px;
-  background-color: #2c2c2c;
-  min-height: calc(100vh - 180px);
-  position: relative;
-  top: 80px;
-}
-
 .chat-section {
-  width: 85%;
   display: flex;
   flex-direction: column;
-  padding-right: 20px;
-  margin-left: 20px;
-  margin-right: 20px;
-  flex-grow: 1;
+  border-radius: 10px;
+  padding: 0;
+  color: #ffffff;
+  flex: 1;
+  min-height: 76vh;
+  flex-grow: 3;
+  max-width: 70%;
+  margin-top: 20px;
+  margin-right: 40px;
 }
 .chat-section .chat-header {
   display: flex;
@@ -377,9 +389,9 @@ header nav .nav-list .nav-item .account-dropdown {
 }
 .chat-section .chat-messages {
   background-color: #1e1e1e;
-  margin: 20px 0;
+  margin-bottom: 20px;
   padding: 20px;
-  border-radius: 10px;
+  border-radius: 5px;
   color: #ffffff;
   flex-grow: 1;
   overflow-y: auto;
@@ -424,9 +436,10 @@ header nav .nav-list .nav-item .account-dropdown {
   flex-direction: row;
   align-items: center;
   background-color: #1e1e1e;
-  border-radius: 10px;
-  padding: 5px;
+  border-radius: 5px;
+  padding: 10px;
   gap: 10px;
+  margin-top: 0;
 }
 .chat-section .chat-input .container-upload {
   padding-top: 5px;
@@ -469,6 +482,37 @@ header nav .nav-list .nav-item .account-dropdown {
   width: 24px;
   height: 24px;
   transition: stroke 0.3s ease;
+}
+
+.loading-animation {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 6px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /*# sourceMappingURL=style.css.map */
