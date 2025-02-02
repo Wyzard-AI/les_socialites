@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wyzard Subscription Portal</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        .flash-message {
+            background-color: #ffdddd;
+            color: #d8000c;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #d8000c;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Get Your Subscription</h1>
+    <!-- Flash Message Placeholder -->
+    <div id="flash-message" class="flash-message" style="display: none;"></div>
+    <form id="subscription-form">
+        <label for="email">Email:</label>
+        <input type="email" id="email" required placeholder="Enter your email">
+
+        <label for="plan">Select a Plan:</label>
+        <select id="plan" required>
+            <option value="price_basic">Basic - $69/month</option>
+        </select>
+
+        <button type="submit">Subscribe</button>
+    </form>
+
+    <h1>Manage Your Subscription</h1>
+    <p>Enter the email address associated with your subscription to cancel it.</p>
+    <form id="cancel-subscription-form">
+        <label for="email">Email:</label>
+        <input type="email" id="cancel-email" placeholder="Enter your email" required>
+        <button type="submit">Cancel Subscription</button>
+    </form>
+
+    <script>
+        // Display a flash message if the cancel URL is accessed
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('cancel') === 'true') {
+                const flashMessage = document.getElementById('flash-message');
+                flashMessage.textContent = "Checkout Cancelled - It looks like you didn’t complete the subscription process.";
+                flashMessage.style.display = 'block';
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Fetch the publishable key from the backend
+                const response = await fetch('/get-stripe-publishable-key');
+                const { publishableKey } = await response.json();
+
+                if (!publishableKey) {
+                    throw new Error('Publishable key not found.');
+                }
+
+                // Initialize Stripe with the fetched publishable key
+                const stripe = Stripe(publishableKey);
+                console.log('Stripe initialized successfully.');
+
+                // Store the Stripe object globally for later use
+                window.stripe = stripe;
+            } catch (error) {
+                console.error('Error fetching the publishable key:', error);
+                alert('An error occurred. Please try again later.');
+            }
+        });
+
+        document.getElementById('subscription-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const plan = document.getElementById('plan').value;
+
+            const button = e.target.querySelector('button');
+            button.disabled = true;
+            button.textContent = 'Processing...';
+
+            try {
+                // Create the Stripe Checkout session
+                const response = await fetch('/create-stripe-checkout-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, plan }),
+                });
+
+                const { sessionId, error } = await response.json();
+
+                if (error) {
+                    console.error(error);
+                    alert('Failed to create Stripe Checkout session. Please try again.');
+                    return;
+                }
+
+                // Redirect to Stripe Checkout
+                const { error: stripeError } = await window.stripe.redirectToCheckout({ sessionId });
+                if (stripeError) {
+                    console.error(stripeError);
+                    alert('An error occurred. Please try again.');
+                }
+            } catch (err) {
+                    console.error('Error:', err);
+                    alert('Failed to process your request.');
+                } finally {
+                    button.disabled = false;
+                    button.textContent = 'Subscribe';
+                }
+        });
+
+        document.getElementById('cancel-subscription-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('cancel-email').value;
+
+            if (!email) {
+                alert('Please provide your email address.');
+                return;
+            }
+
+            const button = e.target.querySelector('button');
+            button.disabled = true;
+            button.textContent = 'Processing...';
+
+            try {
+                const response = await fetch('/cancel-stripe-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+
+                const { success, error } = await response.json();
+
+                if (success) {
+                    alert('Your subscription cancellation request has been processed.');
+                } else {
+                    alert(`Error canceling subscription: ${error}`);
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Failed to process your request. Please try again later.');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Cancel Subscription';
+            }
+        });
+    </script>
+</body>
+</html>

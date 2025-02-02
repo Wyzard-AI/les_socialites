@@ -129,8 +129,9 @@
         <div class="card">
             <form action="{{ url_for('register') }}" method="POST">
                 <div class="mb-3">
-                    <label for="email" class="form-label">Work Email:</label>
+                    <label for="email" class="form-label">Email:</label>
                     <input type="email" class="form-control" id="email" name="email" required oninput="checkEmailDomain()">
+                    <small class="text-muted">Please use the same email address used to process the subscription payment.</small>
                 </div>
                 <div class="mb-3 password-toggle">
                     <label for="password" class="form-label">Choose a Password:</label>
@@ -167,7 +168,6 @@
                         <option value="Transportation">Transportation</option>
                         <option value="Utilities">Utilities</option>
                         <option value="Wellness and Fitness">Wellness and Fitness</option>
-                        <!-- Other business types go here -->
                         <option value="Technology">Technology</option>
                         <!-- Les Socialites will be added dynamically if valid email -->
                     </select>

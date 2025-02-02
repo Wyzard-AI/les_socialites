@@ -4,6 +4,7 @@ import re
 import json
 import uuid
 import requests
+import stripe
 
 from openai import OpenAI
 
@@ -12,7 +13,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import secretmanager
 from google.cloud.sql.connector import Connector, IPTypes
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from pypdf import PdfReader
 from docx import Document
@@ -92,10 +93,10 @@ def save_conversation_to_db(user_id, session_id, role, content):
         connection = get_connection()
         cursor = connection.cursor()
         insert_query = """
-            INSERT INTO app.conversations (user_id, session_id, message_role, message_content)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO app.conversations (user_id, session_id, message_role, message_content, created_at)
+            VALUES (%s, %s, %s, %s, %s)
         """
-        cursor.execute(insert_query, (user_id, session_id, role, content))
+        cursor.execute(insert_query, (user_id, session_id, role, content, datetime.now(timezone.utc)))
         connection.commit()
     except Exception as e:
         print(f"Error saving conversation to DB: {e}")
@@ -313,7 +314,7 @@ def save_summary_to_db(url, summary):
             INSERT INTO app.summaries (id, business_name, url, summary, created_at)
             VALUES (%s, %s, %s, %s, %s)
         """
-        cursor.execute(insert_query, (id, business_name, url, summary, datetime.now()))
+        cursor.execute(insert_query, (id, business_name, url, summary, datetime.now(timezone.utc)))
         connection.commit()
     except Exception as e:
         print(f"Error saving summary to DB: {e}")
@@ -549,6 +550,8 @@ connector = Connector()
 openai_api_key = get_secret('les-socialites-openai-access-token')
 openai_client = OpenAI(api_key=openai_api_key)
 
+# Stripe API
+stripe.api_key = get_secret('stripe-secret-live-key')
 
 
 
@@ -657,24 +660,6 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # Define a list of whitelisted email addresses for registration
-    whitelisted_emails = [
-        "renaudbeaupre1991@gmail.com",
-        "info@lessocialites.com",
-        "claudine@lessocialites.com",
-        "tay@lessocialites.com",
-        "jenny@lessocialites.com",
-        "ruth@lessocialites.com",
-        "imen@lessocialites.com",
-        "ari@lessocialites.com",
-        "gladys@lessocialites.com",
-        "michael@lessocialites.com",
-        "genevieve.beaudry@gmail.com",
-        "team@lessocialites.com",
-        "test@lessocialites.com",
-        "renaud.tester@gmail.com",
-        "beaudrydiane6@gmail.com"
-    ]
 
     if request.method == 'POST':
         email = request.form['email']
@@ -689,11 +674,6 @@ def register():
             business_name = f"personal_account: {email}"
         else:
             business_name = domain
-
-        # Check if the email is in the whitelist
-        if email not in whitelisted_emails:
-            flash("Your email is not authorized to register.", "error")
-            return redirect(url_for('register'))
 
         # Check if the user is allowed to select "Les Socialites" as a business type based on email domain
         if business_type == "Les Socialites" and "lessocialites.com" not in email:
@@ -712,10 +692,28 @@ def register():
                 SELECT id FROM app.users WHERE email = %s LIMIT 1
             """
             cursor.execute(check_query, (email,))
-            result = cursor.fetchone()
+            user_exists = cursor.fetchone()
 
-            if result:
+            if user_exists:
                 flash("Email already exists.", "error")
+                return redirect(url_for('register'))
+
+            # Check if the user has completed a successful payment
+            payment_check_query = """
+                SELECT is_paid, valid_until FROM app.stripe_users WHERE email = %s LIMIT 1
+            """
+
+            cursor.execute(payment_check_query,(email,))
+            stripe_user = cursor.fetchone()
+
+            if not stripe_user:
+                flash("No active subscription found for this email. Please complete your payment first.", "error")
+                return redirect(url_for('register'))
+
+            is_paid, valid_until = stripe_user
+
+            if not is_paid or valid_until < datetime.now(timezone.utc):
+                flash("Your subscription has expired. Please renew your subscription.", "error")
                 return redirect(url_for('register'))
 
             # Insert new user into CloudSQL
@@ -724,7 +722,7 @@ def register():
                 INSERT INTO app.users (id, email, password, business_name, business_type, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_query, (user_id, email, hashed_password, business_name, business_type, datetime.now()))
+            cursor.execute(insert_query, (user_id, email, hashed_password, business_name, business_type, datetime.now(timezone.utc)))
             connection.commit()
 
         except Exception as e:
@@ -1083,7 +1081,7 @@ def save_brand_voice():
             ON CONFLICT (business_name) DO UPDATE
             SET brand_voice = EXCLUDED.brand_voice, timestamp = EXCLUDED.timestamp
         """
-        cursor.execute(insert_query, (brand_id, business_name, brand_voices_str, datetime.now()))
+        cursor.execute(insert_query, (brand_id, business_name, brand_voices_str, datetime.now(timezone.utc)))
         connection.commit()
 
         flash('Brand voice(s) saved successfully!', 'success')
@@ -1171,7 +1169,7 @@ def submit_knowledge_instructions():
         instruction_id = str(uuid.uuid4())
 
         # Execute the insert query
-        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(combined_instructions), datetime.now()))
+        cursor.execute(insert_query, (instruction_id, business_name, sanitize_text(combined_instructions), datetime.now(timezone.utc)))
         connection.commit()
 
         flash("Knowledge instructions added successfully.")
@@ -1338,13 +1336,188 @@ def forgot_password_submit():
 
 
 
+### STRIPE ###
+
+@app.route('/get-stripe-publishable-key', methods=['GET'])
+def get_stripe_publishable_key():
+    try:
+        publishable_key = get_secret('stripe-publishable-key')
+        return jsonify({'publishableKey': publishable_key})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/create-stripe-checkout-session', methods=['POST'])
+def create_stripe_checkout_session():
+    data = request.get_json()
+    email = data.get('email')
+    plan = data.get('plan')
+
+    try:
+        # Create a Stripe Checkout session
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{'price': plan, 'quantity': 1}],
+            mode='subscription',
+            success_url='https://wyzard.io/register',
+            cancel_url='https://wyzard.io/subscription?cancel=true',
+            customer_email=email  # Stripe handles customer creation automatically
+        )
+
+        return jsonify({'sessionId': session.id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/cancel-stripe-subscription', methods=['POST'])
+def cancel_stripe_subscription():
+    data = request.json
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Retrieve subscription ID based on email
+        cursor.execute(
+            """
+            SELECT subscription_id FROM app.stripe_users WHERE email = %s
+            """,
+            (email,)
+        )
+        result = cursor.fetchone()
+        subscription_id = result[0] if result else None
+
+        if not subscription_id:
+            return jsonify({'error': 'No subscription found for the provided email.'}), 404
+
+        # Cancel the subscription in Stripe
+        stripe.Subscription.delete(subscription_id)
+
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print(f"Error canceling subscription: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        connection.close()
 
 
+@app.route('/stripe-webhook', methods=['POST'])
+def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get('Stripe-Signature')
+    endpoint_secret = get_secret('stripe-signing-secret-webhook')  # Fetch from Secret Manager
 
+    # Get the current UTC time
+    utc_now = datetime.now(timezone.utc)
 
+    try:
+        # Verify the event
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, endpoint_secret
+        )
+    except ValueError:
+        return 'Invalid payload', 400
+    except stripe.error.SignatureVerificationError:
+        return 'Invalid signature', 400
 
+    # Handle specific Stripe events
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        customer_email = session.get('customer_email')
+        subscription_id = session.get('subscription')  # For subscriptions
+        plan = session.get('display_items', [{}])[0].get('price', {}).get('id')
 
+        # Extract the coupon code
+        discounts = session.get('total_details', {}).get('discounts', [])
+        coupon_code = None
+        if discounts:
+            coupon = discounts[0].get('coupon')
+            if coupon:
+                coupon_code = coupon.get('id')  # Extract the coupon ID
 
+        # Calculate the next billing date for a monthly subscription
+        valid_until = datetime.now(timezone.utc) + timedelta(days=33) # Buffer of 2-3 days for late payments
+
+        try:
+            connection = get_connection()
+            cursor = connection.cursor()
+
+            # Insert or update user data
+            cursor.execute(
+                """
+                INSERT INTO app.stripe_users (email, subscription_id, plan, coupon_code, is_paid, valid_until, is_cancelled, updated_at)
+                VALUES (%s, %s, %s, %s, TRUE, %s, FALSE, %s)
+                ON CONFLICT (email) DO UPDATE
+                SET is_paid = TRUE, subscription_id = EXCLUDED.subscription_id, valid_until = EXCLUDED.valid_until,
+                    coupon_code = EXCLUDED.coupon_code, is_cancelled = FALSE, updated_at = %s
+                """,
+                (customer_email, subscription_id, plan, coupon_code, valid_until, utc_now, utc_now)
+            )
+            connection.commit()
+        except Exception as e:
+            print(f"Database error: {e}")
+            return 'Database error', 500
+        finally:
+            connection.close()
+
+    elif event['type'] == 'invoice.payment_succeeded':
+        invoice = event['data']['object']
+        subscription_id = invoice.get('subscription')
+
+        # Calculate the new valid_until date
+        valid_until = datetime.now(timezone.utc) + timedelta(days=33)
+
+        try:
+            connection = get_connection()
+            cursor = connection.cursor()
+
+            # Update the valid_until and is_paid fields
+            cursor.execute(
+                """
+                UPDATE app.stripe_users
+                SET is_paid = TRUE, valid_until = %s, updated_at = %s
+                WHERE subscription_id = %s
+                """,
+                (valid_until, utc_now, subscription_id)
+            )
+            connection.commit()
+        except Exception as e:
+            print(f"Database error: {e}")
+            return 'Database error', 500
+        finally:
+            connection.close()
+
+    elif event['type'] == 'customer.subscription.deleted':
+        subscription = event['data']['object']
+        subscription_id = subscription.get('id')
+        current_period_end = subscription.get('current_period_end')  # UNIX timestamp
+
+        # Convert UNIX timestamp to datetime
+        valid_until = datetime.fromtimestamp(current_period_end, tz=timezone.utc)
+
+        try:
+            connection = get_connection()
+            cursor = connection.cursor()
+
+            # Mark subscription as cancelled
+            cursor.execute(
+                """
+                UPDATE app.stripe_users
+                SET is_cancelled = TRUE, valid_until = %s, updated_at = %s
+                WHERE subscription_id = %s
+                """,
+                (valid_until, utc_now, subscription_id)
+            )
+            connection.commit()
+        except Exception as e:
+            print(f"Database error: {e}")
+            return 'Database error', 500
+        finally:
+            connection.close()
+
+    return '', 200
 
 
 
@@ -1369,6 +1542,10 @@ def forgot_password_submit():
 @app.route('/')
 def homepage():
     return render_template('homepage.html')
+
+@app.route('/subscription')
+def pricing():
+    return render_template('subscription.html')
 
 @app.route('/features')
 def features():
