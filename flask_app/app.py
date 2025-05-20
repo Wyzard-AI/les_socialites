@@ -1370,8 +1370,8 @@ def create_stripe_checkout_session():
     email = data.get('email')
     plan = data.get('plan')
 
-    success_url = 'https://wyzard.io/register' if IS_PROD else 'https://dadc-184-162-238-100.ngrok-free.app/register'
-    cancel_url = 'https://wyzard.io/subscription?cancel=true' if IS_PROD else 'https://dadc-184-162-238-100.ngrok-free.app/subscription?cancel=true'
+    success_url = 'https://wyzard.io/register'
+    cancel_url = 'https://wyzard.io/subscription?cancel=true'
 
     try:
         # Create a Stripe Checkout session
@@ -1632,4 +1632,4 @@ def terms_conditions():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    app.run()
