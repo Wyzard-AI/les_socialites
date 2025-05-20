@@ -78,15 +78,37 @@
             background-color: #6a1db7;
         }
 
-        .flash-message {
-            max-width: 300px;
-            background-color: #39ff14;
-            color: #121212;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            text-align: center;
+        .flash-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
         }
+
+        .flash-message {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px 16px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .flash-message.error {
+            background-color: #ffdddd;
+            color: #d8000c;
+            border: 1px solid #d8000c;
+        }
+
+        .flash-message.success {
+            background-color: #d4fdd4;
+            color: #2f6627;
+            border: 1px solid #2f6627;
+        }
+
 
         .password-toggle {
             position: relative;
@@ -116,11 +138,13 @@
     <div class="container">
         <img src="{{ url_for('static', filename='wyzard_logo.png') }}" alt="Wyzard Logo" class="logo">
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-message">
-                    {% for message in messages %}
-                        <p>{{ message }}</p>
+                <div class="flash-container">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">
+                            <p>{{ message }}</p>
+                        </div>
                     {% endfor %}
                 </div>
             {% endif %}

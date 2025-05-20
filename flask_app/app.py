@@ -33,6 +33,9 @@ from bs4 import BeautifulSoup
 
 
 
+### ENV VARS ###
+IS_PROD = os.getenv('FLASK_ENV') == 'production'
+
 
 
 ### GENERAL FUNCTIONS START ###
@@ -695,8 +698,8 @@ def register():
             user_exists = cursor.fetchone()
 
             if user_exists:
-                flash("Email already exists.", "error")
-                return redirect(url_for('register'))
+                flash("An account already exists for this email. Please log in instead.", "error")
+                return redirect(url_for('login'))
 
             # Check if the user has completed a successful payment
             payment_check_query = """
@@ -711,6 +714,9 @@ def register():
                 return redirect(url_for('register'))
 
             is_paid, valid_until = stripe_user
+
+            if valid_until.tzinfo is None:
+                valid_until = valid_until.replace(tzinfo=timezone.utc)
 
             if not is_paid or valid_until < datetime.now(timezone.utc):
                 flash("Your subscription has expired. Please renew your subscription.", "error")
@@ -789,6 +795,10 @@ def logout():
 @app.route('/robots.txt')
 def robots_txt():
     return send_from_directory(app.static_folder, 'robots.txt')
+
+@app.route('/')
+def home():
+    return render_template('homepage.html')  # or whatever your homepage is
 
 
 @app.route('/app/conversations')
@@ -1303,10 +1313,16 @@ def submit_newsletter():
 @app.route('/forgot-password-submit', methods=['POST'])
 def forgot_password_submit():
     email = request.form['email']
+    new_password = request.form['password']
 
-    # SQL query to delete the user from the app.users table
-    delete_query = """
-        DELETE FROM app.users WHERE email = %s
+    # Hash the new password
+    hashed_password = generate_password_hash(new_password, method='pbkdf2:sha256', salt_length=16)
+
+    # SQL query to update the user's password
+    update_query = """
+        UPDATE app.users
+        SET password = %s
+        WHERE email = %s
     """
 
     try:
@@ -1314,11 +1330,14 @@ def forgot_password_submit():
         connection = get_connection()
         cursor = connection.cursor()
 
-        # Execute the delete query
-        cursor.execute(delete_query, (email,))
+        # Execute the update query
+        cursor.execute(update_query, (hashed_password, email))
         connection.commit()
 
-        flash('Email deleted successfully. You can register a new account.', 'success')
+        if cursor.rowcount == 0:
+            flash('No account found with that email.', 'error')
+        else:
+            flash('Your password has been successfully reset. Please log in.', 'success')
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -1331,8 +1350,7 @@ def forgot_password_submit():
         if connection:
             connection.close()
 
-    # Redirect to the registration page after deleting the email
-    return redirect(url_for('register'))
+    return redirect(url_for('login'))
 
 
 
@@ -1352,15 +1370,19 @@ def create_stripe_checkout_session():
     email = data.get('email')
     plan = data.get('plan')
 
+    success_url = 'https://wyzard.io/register' if IS_PROD else 'https://dadc-184-162-238-100.ngrok-free.app/register'
+    cancel_url = 'https://wyzard.io/subscription?cancel=true' if IS_PROD else 'https://dadc-184-162-238-100.ngrok-free.app/subscription?cancel=true'
+
     try:
         # Create a Stripe Checkout session
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{'price': plan, 'quantity': 1}],
             mode='subscription',
-            success_url='https://wyzard.io/register',
-            cancel_url='https://wyzard.io/subscription?cancel=true',
-            customer_email=email  # Stripe handles customer creation automatically
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_email=email,  # Stripe handles customer creation automatically
+            allow_promotion_codes=True
         )
 
         return jsonify({'sessionId': session.id})
@@ -1466,21 +1488,37 @@ def stripe_webhook():
         invoice = event['data']['object']
         subscription_id = invoice.get('subscription')
 
-        # Calculate the new valid_until date
-        valid_until = datetime.now(timezone.utc) + timedelta(days=33)
+        # Safely extract the plan (price_id)
+        line_items = invoice.get('lines', {}).get('data', [])
+        plan = None
+        if line_items:
+            plan = line_items[0].get('price', {}).get('id')
+
+        # Extract the coupon code
+        coupon_code = None
+        if 'discount' in invoice:
+            discount = invoice['discount']
+            if discount and 'coupon' in discount:
+                coupon_code = discount['coupon'].get('id')
+
+        if coupon_code == 'hae0qAil':
+            valid_until = datetime.now(timezone.utc) + timedelta(days=3650)  # 10 years
+        else:
+            valid_until = datetime.now(timezone.utc) + timedelta(days=33)
 
         try:
             connection = get_connection()
             cursor = connection.cursor()
 
-            # Update the valid_until and is_paid fields
+            # Update the relevant fields, including plan and coupon
             cursor.execute(
                 """
                 UPDATE app.stripe_users
-                SET is_paid = TRUE, valid_until = %s, updated_at = %s
+                SET is_paid = TRUE, valid_until = %s, updated_at = %s,
+                    plan = %s, coupon_code = %s
                 WHERE subscription_id = %s
                 """,
-                (valid_until, utc_now, subscription_id)
+                (valid_until, utc_now, plan, coupon_code, subscription_id)
             )
             connection.commit()
         except Exception as e:
@@ -1544,7 +1582,7 @@ def homepage():
     return render_template('homepage.html')
 
 @app.route('/subscription')
-def pricing():
+def subscription():
     return render_template('subscription.html')
 
 @app.route('/features')
@@ -1594,4 +1632,4 @@ def terms_conditions():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5050, debug=True)
