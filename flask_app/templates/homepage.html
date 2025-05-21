@@ -17,6 +17,14 @@
             overflow-x: hidden;
         }
 
+        body.loading {
+            visibility: hidden;
+        }
+
+        body.loading .hero {
+            visibility: visible;
+        }
+
         .header {
             display: flex;
             justify-content: space-between;
@@ -41,7 +49,8 @@
             gap: 20px;
         }
 
-        .header .nav-links a {
+        .header .nav-links a,
+        .header .nav-links span {
             text-decoration: none;
             color: #121212;
             padding: 5px;
@@ -407,7 +416,7 @@
         }
     </style>
 </head>
-<body>
+<body class="loading">
     <div class="header">
         <div class="branding">
             <img src="{{ url_for('static', filename='wyzard_favicon.png') }}" alt="Wyzard Logo">
@@ -418,6 +427,7 @@
             <a href="{{ url_for('pricing') }}">Pricing</a>
             <a href="{{ url_for('faq') }}">FAQ</a>
             <a href="{{ url_for('blog') }}">Blog</a> -->
+            <a href="{{ url_for('subscription') }}">Subscription</a>
             <span>Features</span>
             <span>Case Studies</span>
             <span>Pricing</span>
@@ -445,32 +455,32 @@
         document.addEventListener('DOMContentLoaded', () => {
             const svg = document.getElementById('hero-banner');
             const button = document.querySelector('.btn-watch-demo');
+            const body = document.body;
 
-            // Function to show the button background first
-            const showButtonBackground = () => {
-                button.style.visibility = 'visible'; // Make the button visible
-                button.classList.add('show-background'); // Trigger the CSS animation
+            // Function to reveal the hero overlay
+            const showHeroOverlay = () => {
+                button.style.visibility = 'visible'; // Show the button
+                button.classList.add('show-background'); // Animate background
+                setTimeout(() => button.classList.add('show-text'), 500); // Reveal button text
             };
 
-            // Function to reveal the button text
-            const showButtonText = () => {
-                button.classList.add('show-text'); // Trigger text appearance
+            // Function to reveal the rest of the page
+            const revealPage = () => {
+                body.classList.remove('loading'); // Reveal all content
             };
 
+            // Check if the SVG is loaded
             if (svg.complete) {
-                // If the SVG is already loaded
-                showButtonBackground();
-                setTimeout(showButtonText, 500); // Delay the text loading
+                showHeroOverlay();
+                revealPage();
             } else {
-                // Wait for the SVG to load
                 svg.addEventListener('load', () => {
-                    showButtonBackground();
-                    setTimeout(showButtonText, 500); // Delay the text loading
+                    showHeroOverlay();
+                    revealPage();
                 });
             }
         });
     </script>
-
 
     <div class="key-features">
         <div class="key-feature-column">
