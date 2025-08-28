@@ -63,7 +63,8 @@
             cursor: default;
         }
 
-        .header .nav-links .login-button {
+        .header .nav-links .login-button,
+        .header .nav-links .subscription-button {
             text-decoration: none;
             padding: 10px 20px;
             font-size: 18px;
@@ -75,7 +76,8 @@
             transition: all 0.3s ease;
         }
 
-        .header .nav-links .login-button:hover {
+        .header .nav-links .login-button:hover,
+        .header .nav-links .subscription-button:hover {
             background: linear-gradient(75deg, #d786f7 30%, #6a89e3 70%);
             box-shadow: 0 6px 12px rgba(75, 0, 130, 0.6);
         }
@@ -427,13 +429,13 @@
             <a href="{{ url_for('pricing') }}">Pricing</a>
             <a href="{{ url_for('faq') }}">FAQ</a>
             <a href="{{ url_for('blog') }}">Blog</a> -->
-            <a href="{{ url_for('subscription') }}">Subscription</a>
             <span>Features</span>
             <span>Case Studies</span>
             <span>Pricing</span>
             <span>FAQ</span>
             <span>Blog</span>
-            <a href="{{ url_for('login') }}" class="login-button">Login / Signup</a>
+            <a href="{{ url_for('subscription') }}" class="subscription-button">Subscription</a>
+            <a href="{{ url_for('login') }}" class="login-button">Login</a>
         </nav>
     </div>
 

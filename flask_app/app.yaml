@@ -27,7 +27,7 @@ env_variables:
   SEND_FILE_MAX_AGE_DEFAULT: 86400  # Cache static files for 1 day
 
 health_check:
-  enable_health_check: true
+  enable_health_check: false
   check_interval_sec: 120
   timeout_sec: 4
   unhealthy_threshold: 3
