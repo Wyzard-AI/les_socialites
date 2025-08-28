@@ -1501,7 +1501,7 @@ def stripe_webhook():
             if discount and 'coupon' in discount:
                 coupon_code = discount['coupon'].get('id')
 
-        if coupon_code == 'hae0qAil':
+        if coupon_code == 'jmiSy5Ze':
             valid_until = datetime.now(timezone.utc) + timedelta(days=3650)  # 10 years
         else:
             valid_until = datetime.now(timezone.utc) + timedelta(days=33)
